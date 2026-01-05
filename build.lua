@@ -1,1 +1,1 @@
-return require'mdmath.build'.build_lazy()
+return require("mdmath.build").build_lazy()
