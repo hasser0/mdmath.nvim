@@ -1,7 +1,8 @@
-local M = {}
-local ffi = require("ffi")
+M = {}
 
 M.winsize = nil
+
+local ffi = require("ffi")
 
 ffi.cdef [[
   struct mdmath_winsize {
@@ -23,7 +24,7 @@ local function request_terminal_measures()
   elseif vim.fn.has("bsd") == 1 then
     tiocgwinsz = 0x40087468
   else
-    error("mdmath.nvim: Unsupported platform, please report this issue")
+    error("[MDMATH] Unsupported platform")
   end
 
   ---@class ffi.cdata*
@@ -44,40 +45,26 @@ local function request_terminal_measures()
   }
 end
 
-local function create_autocmd()
-  vim.api.nvim_create_autocmd("VimResized", {
-    callback = function()
-      M.refresh()
-    end
-  })
-end
-
-if vim.in_fast_event() then
-  vim.schedule(create_autocmd)
-else
-  create_autocmd()
+function M.refresh_terminal()
+  M.winsize = nil
 end
 
 function M.get_window_size()
-  local err = nil
-  if M.winsize == nil then
-    M.winsize, err = request_terminal_measures()
-    if not M.winsize then
-      error("Failed to get terminal size: code " .. err)
-    end
+  if M.winsize then
+    return M.winsize
+  end
+  M.winsize, _ = request_terminal_measures()
+  if not M.winsize then
+    error("[MDMATH] Failed to get terminal size")
   end
   return M.winsize
 end
 
-function M.get_cell_size()
+function M.get_pixels_per_cell()
   local size = M.get_window_size()
   local width = size.xpixel / size.col
   local height = size.ypixel / size.row
   return width, height
-end
-
-function M.refresh()
-  M.winsize = nil
 end
 
 return M

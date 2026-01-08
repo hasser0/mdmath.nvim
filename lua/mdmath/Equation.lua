@@ -1,189 +1,153 @@
-local vim = vim
-local nvim = require'mdmath.nvim'
-local uv = vim.loop
-local marks = require'mdmath.marks'
-local util = require'mdmath.util'
-local Processor = require'mdmath.Processor'
-local Image = require'mdmath.Image'
-local tracker = require'mdmath.tracker'
-local terminfo = require'mdmath.terminfo'
-local config = require'mdmath.config'.opts
+Equation = {}
 
-local Equation = util.class 'Equation'
+local EQUATION_TYPE = {
+  INLINE = 1,
+  DISPLAY = 2,
+  NONE = 3,
+}
 
-function Equation:__tostring()
-    return '<Equation>'
+local hl = require("mdmath.highlight_colors")
+local kitty = require("mdmath.kitty")
+local config = require("mdmath.config").opts
+local Mark = require("mdmath.Mark")
+ID = 500
+
+local function get_id()
+  ID = ID + 1
+  return ID
 end
 
-function Equation:_create(res, err)
-    if not res then
-        local text = ' ' .. err
-        local color = 'Error'
-        vim.schedule(function()
-            if self.valid then
-                self.mark_id = marks.add(self.bufnr, self.pos[1], self.pos[2], {
-                    text = { text, self.text:len() },
-                    color = color,
-                    text_pos = 'eol',
-                })
-                self.created = true
-            end
-        end)
-        return
-    end
-
-    local filename = res.data
-
-    local width = res.width
-    local height = res.height
-
-    -- Multiline equations
-    if self.lines then
-        local image = Image.new(height, width, filename)
-        local texts = image:text()
-        local color = image:color()
-
-        local nlines = #self.lines
-
-        local lines = {}
-        for i, text in ipairs(texts) do
-            if i <= nlines then
-                -- Increase text width to match the original width.
-                local padding = self.lines_width[i] - width
-                local rtext = padding > 0
-                    and text .. (' '):rep(padding)
-                    or text
-
-                lines[i] = { rtext, self.lines[i]:len() }
-            else
-                -- add virtual lines
-                lines[i] = { text, -1 }
-            end
-        end
-
-        for i = #texts + 1, nlines do
-            local padding = self.lines_width[i]
-            lines[i] = { (' '):rep(padding), self.lines[i]:len() }
-        end
-
-        vim.schedule(function()
-            if self.valid then
-                self.mark_id = marks.add(self.bufnr, self.pos[1], self.pos[2], {
-                    lines = lines,
-                    color = color,
-                    text_pos = 'overlay',
-                })
-                self.image = image
-                self.created = true
-            else -- free resources
-                image:close()
-            end
-        end)
-    else
-        local image = Image.new(height, width, filename)
-        local text = image:text()[1]
-        local color = image:color()
-
-        vim.schedule(function()
-            if self.valid then
-                self.mark_id = marks.add(self.bufnr, self.pos[1], self.pos[2], {
-                    text = { text, self.text:len() },
-                    color = color,
-                    text_pos = 'overlay',
-                })
-                self.image = image
-                self.created = true
-            else -- free resources
-                image:close()
-            end
-        end)
-    end
+local function split_text_in_lines(text)
+  local lines
+  if text:find("\n") then
+    lines = vim.split(text, "\n")
+  else
+    lines = { text }
+  end
+  return lines
 end
 
-function Equation:_init(bufnr, row, col, text, opts)
-    local color = opts and opts.color or config.foreground
+function Equation:new(opts)
+  local eq = {}
+  setmetatable(eq, { __index = self })
 
-    if text:find('\n') then
-        local lines = vim.split(text, '\n')
-        -- Only support rectangular equations
-        if util.linewidth(bufnr, row) ~= lines[1]:len() or util.linewidth(bufnr, row + #lines - 1) ~= lines[#lines]:len() then
-            return false
-        end
+  eq.bufnr = opts.bufnr
+  eq.hash = opts.hash
+  eq.id = get_id()
+  eq.filename_ready = false
+  eq.transfered = false
+  eq.tty = opts.tty
+  eq.text = opts.text
+  eq.equation = opts.text:gsub("^%$*(.-)%$*$", "%1"):gsub("[\n\r]", "")
+  eq:_set_equation_type()
+  eq.image_filename = nil
+  eq.marks = {}
 
-        local width = 0
-        local lines_width = {}
-        for i, line in ipairs(lines) do
-            local w = util.strwidth(line)
-            width = math.max(width, w)
-            lines_width[i] = w
-        end
-        self.lines = lines
-        self.lines_width = lines_width
-        self.width = width
-    elseif util.linewidth(bufnr, row) == text:len() then
-        -- Treat single line equations as a special case
-        self.width = util.strwidth(text)
-        self.lines = { text }
-        self.lines_width = { self.width }
-    end
-
-    self.bufnr = bufnr
-    -- TODO: pos should be shared with the mark
-    self.pos = tracker.add(bufnr, row, col, text:len())
-    self.pos.on_finish = function()
-        self:invalidate()
-    end
-
-    self.text = text
-    if not self.lines then
-        self.width = util.strwidth(text)
-    end
-    self.created = false
-    self.valid = true
-    self.color = color
-
-    -- remove trailing '$'
-    self.equation = text:gsub('^%$*(.-)%$*$', '%1')
-
-    local cell_width, cell_height = terminfo.cell_size()
-
-    local flags, height
-    if self.lines then
-        height = #self.lines
-        if config.dynamic then
-            flags = 1 -- dynamic
-        else
-            flags = 0
-        end
-    else
-        height = 1
-        flags = 2 -- centered
-    end
-
-    local processor = Processor.from_bufnr(bufnr)
-    processor:request(self.equation, cell_width, cell_height, self.width, height, flags, color, function(res, err)
-        if self.valid then
-            self:_create(res, err)
-        end
-    end)
+  local lines = split_text_in_lines(opts.text)
+  local lines_width = {}
+  for _, line in pairs(lines) do
+    lines_width[#lines_width+1] = line:len()
+  end
+  eq.color_name = hl.register_color_as_highlight(eq.id)
+  eq.ncells_w = math.max(unpack(lines_width))
+  eq.ncells_h = #lines
+  return eq
 end
 
--- TODO: should we call invalidate() on '__gc'?
-function Equation:invalidate()
-    if not self.valid then
-        return
-    end
-    self.valid = false
-    if not self.created then
-        return
-    end
+function Equation:free()
+  kitty.delete_image({
+    tty = self.tty,
+    image_id = self.id,
+  })
+end
 
-    self.pos:cancel()
-    marks.remove(self.bufnr, self.mark_id)
-    if self.image then
-        self.image:close()
+function Equation:request_image_mathjax(processor)
+  if not self.filename_ready then
+    processor:request_image({
+      hash = self.hash,
+      equation = self.equation,
+      ncells_w = self.ncells_w,
+      ncells_h = self.ncells_h,
+      inline = self.equation_type == EQUATION_TYPE.INLINE and 1 or 0,
+      flags = self:_get_flags(),
+      color = config.foreground,
+    })
+  end
+end
+
+---@param opts {
+  ---mark_id: number,
+  ---start_row: number,
+  ---start_col: number,
+  ---end_row: number,
+  ---end_col: number,
+  ---}
+function Equation:create_new_mark(opts)
+  local already_exists = false
+  for _, mark in pairs(self.marks) do
+    already_exists = already_exists or mark:is_location(opts.start_row, opts.start_col)
+  end
+  if already_exists then
+    return nil
+  end
+  local mark = Mark:new({
+    mark_id = opts.mark_id,
+    bufnr = self.bufnr,
+    color_name = self.color_name,
+    ncells_w = self.ncells_w,
+    ncells_h = self.ncells_h,
+    image_id = self.id,
+    start_row = opts.start_row,
+    start_col = opts.start_col,
+    end_row = opts.end_row,
+    end_col = opts.end_col,
+    tty = self.tty,
+    callback = function()
+      return self.transfered
     end
-    self.mark_id = nil
+  })
+  self.marks[tostring(opts.mark_id)] = mark
+  return mark
+end
+
+function Equation:transfer_image()
+  if self.filename_ready and not self.transfered then
+    self.transfered = true
+    kitty.transfer_png_file({
+      tty = self.tty,
+      png_path = self.image_filename,
+      image_id = self.id
+    })
+  end
+end
+
+function Equation:set_image_path(text)
+  self.image_filename = text
+  self.filename_ready = true
+end
+
+function Equation:_get_flags()
+  local flags = 0
+  if (self.equation_type == EQUATION_TYPE.DISPLAY and config.center_display) or
+    (self.equation_type == EQUATION_TYPE.INLINE and config.center_inline) then
+    flags = flags + 2
+  end
+  if self.equation_type == EQUATION_TYPE.INLINE then
+    flags = flags + 4
+  end
+  return flags
+end
+
+function Equation:_set_equation_type()
+  if self.text:sub(1, 2) == "$$" and self.text:sub(-2) == "$$" then
+    self.equation_type = EQUATION_TYPE.DISPLAY
+  elseif self.text:sub(1, 2) == "\\[" and self.text:sub(-2) == "\\]" then
+    self.equation_type = EQUATION_TYPE.DISPLAY
+  elseif self.text:sub(1, 1) == "$" and self.text:sub(-1) == "$" then
+    self.equation_type = EQUATION_TYPE.INLINE
+  else
+    self.equation_type = EQUATION_TYPE.NONE
+  end
 end
 
 return Equation
