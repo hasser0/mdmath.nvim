@@ -1,6 +1,5 @@
-import { spawn, exec } from "node:child_process";
+import { spawn } from "node:child_process";
 import { stat } from "node:fs";
-import { sendNotification } from "./debug.js";
 const paths = process.env.PATH.split(":");
 
 const fileExists = (filename) => new Promise((resolve, reject) => {
@@ -59,33 +58,6 @@ const magickBinary = new Promise(async (resolve) => {
     });
 });
 
-export async function pngDimensions(png) {
-    const magick = await magickBinary;
-
-    const args = [];
-    if (magick.isV7)
-        args.push("identify")
-    args.push("-ping");
-    args.push("-format", "%w %h");
-    args.push("png:-");
-
-    return new Promise((resolve, reject) => {
-        const p = spawn(magick.identify, args);
-        let data = "";
-        p.stdout.on("data", (chunk) => data += chunk);
-        p.on("close", (code) => {
-            // TODO: improve error handling
-            if (code !== 0)
-                return reject(new Error(`pngDimensions: identify exited with code ${code}`));
-
-            const [width, height] = data.trim().split(" ").map(Number);
-            resolve({width, height});
-        });
-        p.stdin.write(png);
-        p.stdin.end();
-    });
-}
-
 export async function pngFitTo(input, output, opts) {
     const size = `${opts.width}x${opts.height}`;
     const magick = await magickBinary;
@@ -102,13 +74,13 @@ export async function pngFitTo(input, output, opts) {
             "-extent", size
         );
     } else if (imageHeight < height && (2 * bottomLineHeight + imageHeight) > height) {
-    // 2. If image is small but the "bottom line" would overflow: Just center it
+        // 2. If image is small but the "bottom line" would overflow: Just center it
         args.push(
             "-gravity", "center",
             "-extent", size
         );
     } else {
-    // 3. If there is plenty of room: Trim bottom and add specific bottomLineHeight
+        // 3. If there is plenty of room: Trim bottom and add specific bottomLineHeight
         args.push(
             "-gravity", "south",
             "-splice", `0x${bottomLineHeight}`,
@@ -125,7 +97,7 @@ export async function pngFitTo(input, output, opts) {
             if (code !== 0)
                 return reject(new Error(`pngFitTo: ${stderr}`));
 
-            resolve({width: opts.width, height: opts.height});
+            resolve({ width: opts.width, height: opts.height });
         });
         p.stdin.write(input);
         p.stdin.end();
@@ -157,7 +129,7 @@ export async function rsvgConvert(svg, opts) {
                 const heightIndex = widthIndex + 4;
                 const width = data.readUInt32BE(widthIndex);
                 const height = data.readUInt32BE(heightIndex);
-                resolve({data: data, width: width, height: height});
+                resolve({ data: data, width: width, height: height });
             }
         });
         p.stdin.write(svg);

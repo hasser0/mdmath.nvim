@@ -2,7 +2,7 @@ import fs from "fs";
 import mathjax from "mathjax";
 import reader from "./reader.js";
 import { sendNotification }  from "./debug.js";
-import { pngFitTo, rsvgConvert, pngDimensions } from "./magick.js";
+import { pngFitTo, rsvgConvert } from "./magick.js";
 import { randomBytes } from "node:crypto";
 import { addCallbackOnExit } from "./onexit.js";
 

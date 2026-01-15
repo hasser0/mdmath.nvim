@@ -67,6 +67,7 @@ function Buffer.new(bufnr)
         old_end_row, old_end_col, old_offset,
         new_end_row, new_end_col, new_offset)
     end,
+    on_lines = function() self:_reset_timer() end
   })
   -- create autocmds
   vim.api.nvim_create_autocmd({ "VimLeave" }, {
@@ -93,7 +94,9 @@ function Buffer.new(bufnr)
   vim.api.nvim_create_autocmd({ "WinScrolled", "BufEnter", "InsertLeave" }, {
     buffer = self.bufnr,
     group = augroup,
-    callback = function() self:_loop() end
+    callback = function()
+      self:_loop()
+    end
   })
   if config.anticonceal then
     vim.api.nvim_create_autocmd({ "CursorMoved" }, {
@@ -109,8 +112,7 @@ function Buffer.new(bufnr)
       callback = function() self:_hide_on_insert() end
     })
   end
-  --TODO
-  -- self:_loop()
+  self:_reset_timer()
 
   return self
 end
@@ -156,7 +158,7 @@ end
 
 function Buffer:_loop()
   self:_parse_line_range()
-  self:_draw_marks()
+  self:_redraw()
 end
 
 function Buffer:_reset_timer()
@@ -245,9 +247,9 @@ function Buffer:_parse_line_range()
   end
 end
 
-function Buffer:_draw_marks()
+function Buffer:_redraw()
   for _, mark in pairs(self.marks) do
-    mark:show()
+    mark:redraw()
   end
 end
 
