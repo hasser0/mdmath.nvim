@@ -1,4 +1,5 @@
 Processor = {}
+Processor.__index = Processor
 
 local config = require("mdmath.config").opts
 local terminfo =  require("mdmath.terminfo")
@@ -6,35 +7,36 @@ local PLUGIN_DIR = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h
 local PROCESSOR_DIR = PLUGIN_DIR .. "/mdmath-js"
 local PROCESSOR_JS = PROCESSOR_DIR .. "/src/processor.js"
 
-function Processor:new(callback)
-  local processor = {}
-  setmetatable(processor, { __index = self })
+function Processor.new(buffer)
+  local self = {}
+  setmetatable(self, Processor)
 
-  processor.stdin = vim.uv.new_pipe()
-  assert(processor.stdin, "failed to open stdin for processor: ")
-  processor.stdout = vim.uv.new_pipe()
-  assert(processor.stdout, "failed to open stdin for processor: ")
-  processor.stderr = vim.uv.new_pipe()
-  assert(processor.stderr, "failed to open stdin for processor: ")
+  self.stdin = vim.uv.new_pipe()
+  self.stdout = vim.uv.new_pipe()
+  self.stderr = vim.uv.new_pipe()
+  self.buffer = buffer
+  assert(self.stdin, "[MDMATH] Failed to open stdin for processor")
+  assert(self.stdout, "[MDMATH] Failed to open stdout for processor")
+  assert(self.stderr, "[MDMATH] Failed to open stderr for processor")
 
-  processor.handle = vim.uv.spawn("node", {
+  self.handle = vim.uv.spawn("node", {
     args = { PROCESSOR_JS },
-    stdio = { processor.stdin, processor.stdout, processor.stderr }
-  }, function(_, _) end)
+    stdio = { self.stdin, self.stdout, self.stderr }
+  })
 
-  processor.stdout:read_start(function(_, data)
-    callback(data)
+  self.stdout:read_start(function(_, data)
+    self:_resend_data(data)
   end)
 
-  processor.stderr:read_start(function(_, data)
-    callback(data)
+  self.stderr:read_start(function(_, data)
+    print(data)
   end)
 
-  processor:set_cell_sizes()
-  processor:_set_float_var("blratio", config.bottom_line_ratio)
-  processor:_set_int_var("ppad", config.pixel_padding)
+  self:set_cell_sizes()
+  self:_set_float_var("blratio", config.bottom_line_ratio)
+  self:_set_int_var("ppad", config.pixel_padding)
 
-  return processor
+  return self
 end
 
 function Processor:free()
@@ -58,6 +60,26 @@ function Processor:request_image(req)
     req.color, req.ncells_w, req.ncells_h, #req.equation, req.equation)
   )
 end
+
+function Processor:_resend_data(data)
+  local iter = data:gmatch("([a-zA-Z0-9-/.]*):([a-zA-Z0-9-/.]*):([a-zA-Z0-9- \\/.]*):")
+  for code, hash, value in iter do
+    if code == "image" then
+      self.buffer:notify_processor({
+        event_type = "image",
+        hash = hash,
+        path = value
+      })
+    elseif code == "error" then
+      self.buffer:notify_processor({
+        event_type = "error",
+        hash = hash,
+        error = value
+      })
+    end
+  end
+end
+
 
 function Processor:_set_float_var(var, value)
   self.stdin:write(string.format("setfloat:%s:%.2f:", var, value))

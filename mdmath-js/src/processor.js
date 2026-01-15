@@ -62,7 +62,7 @@ async function processEquation(req) {
     const terminalHeight = req.height * cellHeightInPixels;
 
     if (!req.equation || req.equation.trim().length === 0) {
-        write(`error:${req.hash}:EmptyEquation:`)
+        write(`error:${req.hash}:Empty equation:`)
         return
     }
 
