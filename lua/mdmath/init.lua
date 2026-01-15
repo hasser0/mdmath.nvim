@@ -23,7 +23,7 @@ function M.disable(bufnr)
 end
 
 function M.build()
-  require("mdmath.config").build_js()
+  require("mdmath.build").build()
 end
 
 return M
