@@ -1,7 +1,9 @@
 ## ✨ mdmath.nvim
 
-Thanks to Thiago34532 for this project
-A Markdown equation previewer inside Neovim, using Kitty Graphics Protocol.
+Thanks to Thiago34532 for this project.
+
+This is the same markdown equation previewer inside Neovim, using Kitty Graphics
+Protocol with some improvements for inline equations.
 
 ## Requirements
   - Neovim version `>=0.10.0`
@@ -23,7 +25,6 @@ A Markdown equation previewer inside Neovim, using Kitty Graphics Protocol.
     },
     opts = {...},
     build = ":Mdmath build"
-
 }
 ```
 
@@ -45,8 +46,12 @@ opts = {
   center_inline = true,
   -- Interval between updates (milliseconds).
   update_interval = 400,
-  -- Terminal dots per inch checkout with xdpyinfo | grep -B1 dot
-  dpi = 96,
+  -- Number of pixels to use as padding from above and below
+  pixel_padding = 0,
+  -- Pixels height ratio to use as baseline to align equations vertically
+  bottom_line_ratio = 0.15,
+  -- Retry marks in milliseconds
+  retry_mark_draw = 3,
 }
 ```
 

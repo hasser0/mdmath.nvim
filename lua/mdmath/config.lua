@@ -1,8 +1,6 @@
 M = {}
 
 local default_opts = require("mdmath.constants").default_opts
-local PLUGIN_DIR = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
-local JS_DIR = PLUGIN_DIR .. "/mdmath-js"
 
 M.opts = default_opts
 M.is_loaded = false
@@ -17,16 +15,6 @@ local function hl_as_hex(color)
   end
   local foreground = vim.api.nvim_get_hl(0, { name = color, create = false, link = false }).fg
   return string.format("#%06x", foreground)
-end
-
-local function exists_dir(file)
-  local ok, err, code = os.rename(file, file)
-  if not ok then
-    if code == 13 then
-      return true
-    end
-  end
-  return ok, err
 end
 
 function M.set_options(opts)
@@ -64,26 +52,6 @@ function M.set_options(opts)
   assert(M.opts.retry_mark_draw > 0, "[MDMATH] 'retry_mark_draw' config expected positive number")
 
   M.is_loaded = true
-end
-
-function M.build_js()
-  if not exists_dir(JS_DIR) then
-    error("[MDMATH]: Dir " .. JS_DIR .. " does not exist")
-  end
-
-  local stderr, err = vim.uv.new_pipe(false)
-  if not stderr then
-    error("[MDMATH] Failed to create stderr pipe on build: " .. err)
-    return
-  end
-
-  vim.uv.spawn("npm",
-    {
-      args = { "install" },
-      stdio = { _, _, stderr },
-      cwd = JS_DIR,
-    }
-  )
 end
 
 return M
