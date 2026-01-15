@@ -85,7 +85,6 @@ function Buffer.new(bufnr)
         terminfo.refresh_terminal()
         self.processor:set_cell_sizes()
         self:_free_equations()
-        self:_free_marks()
         self:_reset_timer()
       end)
     end
