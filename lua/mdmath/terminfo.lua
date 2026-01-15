@@ -1,45 +1,70 @@
-local api = vim.api
+M = {}
 
-local M = {}
+M.winsize = nil
 
-local winsize = nil
+local ffi = require("ffi")
 
-function M.size()
-    if winsize == nil then
-        winsize, err = require'mdmath.terminfo._system'.request_size()
-        if not winsize then
-            error('Failed to get terminal size: code ' .. err)
-        end
-    end
+ffi.cdef [[
+  struct mdmath_winsize {
+      unsigned short int ws_row;
+      unsigned short int ws_col;
+      unsigned short int ws_xpixel;
+      unsigned short int ws_ypixel;
+  };
+  int ioctl(int fd, unsigned long op, ...);
+]]
 
-    return winsize
+local function request_terminal_measures()
+  local tiocgwinsz
+  -- Based on hologram.nvim
+  if vim.fn.has("linux") == 1 then
+    tiocgwinsz = 0x5413
+  elseif vim.fn.has("mac") == 1 then
+    tiocgwinsz = 0x40087468
+  elseif vim.fn.has("bsd") == 1 then
+    tiocgwinsz = 0x40087468
+  else
+    error("[MDMATH] Unsupported platform")
+  end
+
+  ---@class ffi.cdata*
+  ---@field ws_row number
+  ---@field ws_col number
+  ---@field ws_xpixel number
+  ---@field ws_ypixel number
+  local ws = ffi.new("struct mdmath_winsize")
+  if ffi.C.ioctl(1, tiocgwinsz, ws) < 0 then
+    return nil, ffi.errno()
+  end
+
+  return {
+    row = ws.ws_row,
+    col = ws.ws_col,
+    xpixel = ws.ws_xpixel,
+    ypixel = ws.ws_ypixel
+  }
 end
 
-function M.cell_size()
-    local size = M.size()
-
-    local width = size.xpixel / size.col
-    local height = size.ypixel / size.row
-
-    return width, height
+function M.refresh_terminal()
+  M.winsize = nil
 end
 
-function M.refresh()
-    winsize = nil
+function M.get_window_size()
+  if M.winsize then
+    return M.winsize
+  end
+  M.winsize, _ = request_terminal_measures()
+  if not M.winsize then
+    error("[MDMATH] Failed to get terminal size")
+  end
+  return M.winsize
 end
 
-local function create_autocmd()
-    api.nvim_create_autocmd('VimResized', {
-        callback = function()
-            M.refresh()
-        end
-    })
-end
-
-if vim.in_fast_event() then
-    vim.schedule(create_autocmd)
-else
-    create_autocmd()
+function M.get_pixels_per_cell()
+  local size = M.get_window_size()
+  local width = size.xpixel / size.col
+  local height = size.ypixel / size.row
+  return width, height
 end
 
 return M

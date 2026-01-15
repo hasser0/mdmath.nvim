@@ -1,33 +1,32 @@
-const textDecoder = new TextDecoder('utf-8');
+const textDecoder = new TextDecoder("utf-8");
 
-/**
-  * @param {number[]} array
-  * @returns {string}
-*/
 function arrayToUTF8String(array) {
     return textDecoder.decode(Uint8Array.from(array));
 }
 
 export function makeAsyncStream(stream, sep) {
-    const SEP_TOKEN = sep.charCodeAt(0);
-
+    const sep_token = sep.charCodeAt(0);
     const M = {};
 
     M._callback = null;
-    stream.on('readable', () => {
-        if (M._callback) {
-            if (stream.readableLength === 0)
-                M._callback(false);
-
-            const callback = M._callback;
-            M._callback = null;
-            callback(true);
+    stream.on("readable", () => {
+        if (!M._callback) {
+            return;
         }
+
+        if (stream.readableLength === 0) {
+            M._callback(false);
+        }
+
+        const callback = M._callback;
+        M._callback = null;
+        callback(true);
     });
 
     M.waitReadable = () => new Promise((resolve) => {
-        if (M._callback)
-            throw new Error('Another readable is pending');
+        if (M._callback) {
+            throw new Error("ReadablePending");
+        }
 
         if (stream.readableLength > 0) {
             resolve(true);
@@ -37,8 +36,9 @@ export function makeAsyncStream(stream, sep) {
     });
 
     M.readByte = async () => {
-        if (!await M.waitReadable())
-            throw new Error('EOF reached');
+        if (!await M.waitReadable()) {
+            throw new Error("EOF reached");
+        }
 
         let byte = stream.read(1);
         return byte[0];
@@ -48,7 +48,7 @@ export function makeAsyncStream(stream, sep) {
         const buffer = [];
         while (true) {
             const byte = await M.readByte();
-            if (byte === SEP_TOKEN)
+            if (byte === sep_token)
                 return arrayToUTF8String(buffer);
 
             buffer.push(byte);
@@ -60,7 +60,7 @@ export function makeAsyncStream(stream, sep) {
         const num = parseInt(str, 10);
 
         if (isNaN(num) || num < 0)
-            throw new Error(`Error: Invalid number: ${str}`);
+            throw new Error(`InvalidInt${str}`);
         return num;
     }
 
@@ -69,7 +69,7 @@ export function makeAsyncStream(stream, sep) {
         const num = parseFloat(str);
 
         if (isNaN(num) || num < 0)
-            throw new Error(`Error: Invalid number: ${str}`);
+            throw new Error(`InvalidFloat${str}`);
         return num;
     }
 
@@ -79,6 +79,7 @@ export function makeAsyncStream(stream, sep) {
             const byte = await M.readByte();
             buffer.push(byte);
         }
+        await M.readByte();
         return arrayToUTF8String(buffer);
     }
 

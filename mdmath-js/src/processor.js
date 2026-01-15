@@ -1,202 +1,141 @@
-import fs from 'fs';
-import mathjax from 'mathjax';
-import reader from './reader.js';
-import { pngDimensions, pngFitTo, rsvgConvert } from './magick.js';
-import { sendNotification, saveFile } from './debug.js';
-import { sha256Hash } from './util.js';
-import { randomBytes } from 'node:crypto';
-import { onExit } from './onexit.js';
+import fs from "fs";
+import mathjax from "mathjax";
+import reader from "./reader.js";
+import { sendNotification }  from "./debug.js";
+import { pngFitTo, rsvgConvert, pngDimensions } from "./magick.js";
+import { randomBytes } from "node:crypto";
+import { addCallbackOnExit } from "./onexit.js";
 
-// To prevent conflicts with other instances
-const DIRECTORY_SUFFIX = randomBytes(3).toString('hex');
-
-// TODO: Portable directory instead of Unix-specific
+const DIRECTORY_SUFFIX = randomBytes(6).toString("hex");
 const IMG_DIR = `/tmp/nvim-mdmath-${DIRECTORY_SUFFIX}`;
-
-/** @typedef {{equation: string, filename: string}} Equation */
-
-/** @type {Equation[]} */
 const equations = [];
-
-/** @type {Object.<string, Equation>} */
-const equationMap = {};
-
 const svgCache = {};
+let Mathjax = undefined;
+let cellHeightInPixels = null
+let cellWidthInPixels = null
+let bottomLineRatio = null
+let pixelPadding = null
+let zoomPixelsRatio = 16
 
-let internalScale = 1;
-let dynamicScale = 1;
-
-let MathJax = undefined;
 
 class MathError extends Error {
     constructor(message) {
         super(message);
-        this.name = 'MathError';
+        this.name = "MathError";
     }
 }
 
 function mkdirSync(path) {
     try {
         fs.mkdirSync(path, { recursive: true });
-    } catch (err) {
-        if (err.code !== 'EEXIST')
-            throw err;
+    } catch (error) {
+        throw error;
     }
 }
 
-/**
- * @param {string} equation
- * @returns {Promise<{svg: string} | {error: string}>}
- */
-async function equationToSVG(equation) {
-    if (equation in svgCache)
+function write(msg) {
+    process.stdout.write(msg);
+}
+
+async function equationToSVG(equation, opts) {
+    if (equation in svgCache) {
         return svgCache[equation];
+    }
 
     try {
-        const svg = await MathJax.tex2svgPromise(equation);
-        return svgCache[equation] = {
-            svg: MathJax.startup.adaptor.innerHTML(svg)
+        const svg = await Mathjax.tex2svgPromise(equation, opts);
+        return svgCache[equation] = { svg: Mathjax.startup.adaptor.innerHTML(svg) }
+    } catch (error) {
+        if (error instanceof MathError) {
+            return svgCache[equation] = { error: error.message }
         }
-    } catch (err) {
-        if (err instanceof MathError) {
-            return svgCache[equation] = {
-                error: err.message
-            }
-        } else {
-
-        }
-
-        throw err;
+        throw error;
     }
 }
 
-function write(identifier, width, height, data) {
-    process.stdout.write(`${identifier}:image:${width}:${height}:${data.length}:${data}`);
-}
+// hashLength, hash, cellWidth, cellHeight,
+// width, height, flags, color, equation
+async function processEquation(req) {
+    const isCenter = !!(req.flags & 2);
+    const isInline = !!(req.flags & 4);
+    const terminalWidth = req.width * cellWidthInPixels;
+    const terminalHeight = req.height * cellHeightInPixels;
 
-function writeError(identifier, error) {
-    process.stdout.write(`${identifier}:error:0:0:${error.length}:${error}`);
-}
-
-function parseViewbox(svgString) {
-    const viewboxMatch = svgString.match(/viewBox="([^"]+)"/);
-    if (!viewboxMatch) return null;
-
-    const [minX, minY, width, height] = viewboxMatch[1].split(' ').map(parseFloat);
-    return { minX, minY, width, height };
-}
-
-/**
-  * @param {string} identifier
-  * @param {string} equation
-*/
-async function processEquation(identifier, equation, cWidth, cHeight, width, height, flags, color) {
-    if (!equation || equation.trim().length === 0)
-        return writeError(identifier, 'Empty equation')
-
-    const equation_key = `${equation}_${cWidth}*${width}x${cHeight}*${height}_${flags}_${color}`;
-    if (equation_key in equationMap) {
-        const equationObj = equationMap[equation_key];
-        return write(identifier, equationObj.width, equationObj.height, equationObj.filename);
+    if (!req.equation || req.equation.trim().length === 0) {
+        write(`error:${req.hash}:Empty equation:`)
+        return
     }
 
-    let {svg, error} = await equationToSVG(equation);
-    if (!svg)
-        return writeError(identifier, error)
-
-    svg = svg
-        .replace(/currentColor/g, color)
-        .replace(/style="[^"]+"/, '')
-
-    const isDynamic = !!(flags & 1);
-
-    let basePNG;
-    let iWidth, iHeight;
-    if (isDynamic) {
-        const zoom = 10 * dynamicScale * cHeight * internalScale / 96;
-        basePNG = await rsvgConvert(svg, {zoom});
-
-        const {width: pngWidth, height: pngHeight} = await pngDimensions(basePNG);
-
-        const newWidth = (pngWidth / internalScale) / cWidth;
-        const newHeight = (pngHeight / internalScale) / cHeight;
-
-        // If the image is smaller than the cell, it's better to keep the original size, so
-        width = Math.max(width, Math.ceil(newWidth));
-        height = Math.max(height, Math.ceil(newHeight));
-
-        iWidth = width * cWidth * internalScale;
-        iHeight = height * cHeight * internalScale;
-    } else {
-        iWidth = width * cWidth * internalScale;
-        iHeight = height * cHeight * internalScale;
-
-        basePNG = await rsvgConvert(svg, {width: iWidth, height: iHeight});
+    let result = await equationToSVG(req.equation, {
+        display: !isInline,
+    });
+    if (result.error) {
+        write(`error:${req.hash}:${result.error}:`)
+       return
     }
 
-    const hash = sha256Hash(equation).slice(0, 7);
-    const isCenter = !!(flags & 2);
-    const filename = `${IMG_DIR}/${hash}_${iWidth}x${iHeight}.png`;
+    let svg = result.svg.replace(/currentColor/g, req.color).replace(/style="[^"]+"/, "")
+    let basePNG = await rsvgConvert(svg, {
+        zoom:  cellHeightInPixels / zoomPixelsRatio,
+    });
+    const filename = `${IMG_DIR}/${req.hash}.png`;
+    equations.push(filename);
 
-    await pngFitTo(basePNG, filename, iWidth, iHeight, {center: isCenter});
-
-    const equationObj = {equation, filename, width, height};
-    equations.push(equationObj);
-    equationMap[equation_key] = equationObj;
-
-    write(identifier, width, height, filename);
+    await pngFitTo(basePNG.data, filename, {
+        width: terminalWidth,
+        height: terminalHeight,
+        center: isCenter,
+        bottomLineHeight: Math.floor(cellHeightInPixels * bottomLineRatio),
+        pixelPadding: pixelPadding,
+        imageHeight: basePNG.height,
+        imageWidth: basePNG.width,
+    });
+    write(`image:${req.hash}:${filename}:`);
 }
 
-function processAll(request) {
-    if (request.type === 'request') {
-        return processEquation(
-            request.identifier,
-            request.data,
-            request.cellWidth,
-            request.cellHeight,
-            request.width,
-            request.height,
-            request.flags,
-            request.color
-        ).catch((err) => {
-            writeError(request.identifier, err.message);
+function processAll(req) {
+    if (req.type === "request") {
+        processEquation(req).catch((err) => {
+            write(`error:${req.hash}:${err.message}:`)
         });
-    } else if (request.type === 'dscale') {
-        // FIXME: Invalidate cache when scale changes
-        dynamicScale = request.scale;
-    } else if (request.type === 'iscale') {
-        // FIXME: Invalidate cache when scale changes
-        internalScale = request.scale;
+    } else if (req.type === "setfloat" && req.variable === "wpix") {
+        cellWidthInPixels = req.value;
+    } else if (req.type === "setfloat" && req.variable === "hpix") {
+        cellHeightInPixels = req.value;
+    } else if (req.type === "setfloat" && req.variable === "blratio") {
+        bottomLineRatio = req.value;
+    } else if (req.type === "setint" && req.variable === "ppad") {
+        pixelPadding = req.value;
     }
 }
 
 function main() {
     mkdirSync(IMG_DIR);
-
-    onExit(() => {
-        equations.forEach(({filename}) => {
+    addCallbackOnExit(() => {
+        equations.forEach((filename) => {
             try {
                 fs.unlinkSync(filename);
-            } catch (err) {}
+            } catch (error) {
+            }
         });
 
         try {
             fs.rmdirSync(IMG_DIR);
-        } catch (err) {}
+        } catch (error) { }
     });
 
     mathjax.init({
-        loader: { load: ['input/tex', 'output/svg'] },
+        loader: { load: ["input/tex", "output/svg"] },
         tex: {
-            formatError: (_, err) => {
-                throw new MathError(err.message);
+            formatError: (_, error) => {
+                throw new MathError(error.message);
             }
         }
-    }).then((MathJax_) => {
-        MathJax = MathJax_;
+    }).then((_mathjax) => {
+        Mathjax = _mathjax;
         reader.listen(processAll);
-    }).catch((err) => {
-        console.error(err);
+    }).catch((error) => {
+        console.error(error);
         process.exit(1);
     });
 }

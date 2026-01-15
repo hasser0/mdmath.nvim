@@ -15,12 +15,5 @@ export async function saveFile(filename, data) {
 }
 
 export function sendNotification(message) {
-    exec(`notify-send "Processor.js" '${message}'`, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error: ${error.message}`);
-        }
-        if (stderr) {
-            console.error(`Stderr: ${stderr}`);
-        }
-    });
+    exec(`notify-send Processor.js: '${message}'`);
 }
