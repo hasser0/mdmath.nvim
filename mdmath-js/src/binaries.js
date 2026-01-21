@@ -111,7 +111,7 @@ export async function rsvgConvert(svg, opts) {
   const args = [];
   args.push("--format", "png");
   for (const opt in opts) {
-    args.push(`--${opt.replaceAll("_", "-")}`, opts[opt])
+    args.push(`--${opt.replaceAll("_", "-")}`, opts[opt]);
   }
 
   return new Promise((resolve, reject) => {

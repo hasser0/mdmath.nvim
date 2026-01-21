@@ -48,52 +48,54 @@ end
 function Processor:set_cell_sizes()
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
   self:_send_json({
-    type = "setpixel",
-    wpix = pixels_per_cell_w,
-    hpix = pixels_per_cell_h,
-    inline_method = "example",
-    display_method = "example",
+    type = "pixel",
+    cellWidthInPixels = pixels_per_cell_w,
+    cellHeightInPixels = pixels_per_cell_h,
   })
 end
 
 function Processor:set_configs()
+  -- TODO add methods for display
   self:_send_json({
     type = "config",
-    blratio = config.bottom_line_ratio,
-    ppad = config.pixel_padding,
+    bottomLineRatio = config.bottom_line_ratio,
+    pixelPadding = config.pixel_padding,
+    centerInline = config.center_inline,
+    centerDisplay = config.center_display,
+    foreground = config.foreground,
+    displayMethod = "overlay_show",
+    inlineMethod = config.inline_strategy_show,
   })
+end
+
+function Processor:request_image(req)
+  req.type = "image"
+  self:_send_json(req)
 end
 
 function Processor:_send_json(value)
   local b64_json = vim.base64.encode(vim.fn.json_encode(value))
   local len = #b64_json
-  self.stdin:write( string.format("%d:%s", len, b64_json))
-end
-
-function Processor:request_image(req)
-  self.stdin:write(
-    string.format("request:%d:%s:%d:%d:%s:%d:%d:%d:%s:",
-    #req.hash, req.hash, req.inline, req.flags,
-    req.color, req.ncells_w, req.ncells_h, #req.equation, req.equation)
-  )
+  self.stdin:write(string.format("%d:%s:", len, b64_json))
 end
 
 function Processor:_resend_data(data)
-  local iter = data:gmatch("([a-zA-Z0-9-/.]*):([a-zA-Z0-9-/.]*):([a-zA-Z0-9- \\/.]*):")
-  for code, hash, value in iter do
-    if code == "image" then
-      self.buffer:notify_processor({
-        event_type = "image",
-        hash = hash,
-        path = value
-      })
-    elseif code == "error" then
-      self.buffer:notify_processor({
-        event_type = "error",
-        hash = hash,
-        error = value
-      })
+  local i = 1
+  local length = #data
+  while i <= length do
+    local start_pos, end_pos, str_len = data:find("^(%d+):", i)
+    if not start_pos then
+      break
     end
+    str_len = tonumber(str_len)
+    local content_start = end_pos + 1
+    local content_end = end_pos + str_len
+    local segment = data:sub(content_start, content_end)
+    vim.schedule(function()
+      local json = vim.fn.json_decode(vim.base64.decode(segment))
+      self.buffer:notify_processor(json)
+    end)
+    i = content_end + 2
   end
 end
 

@@ -15,7 +15,9 @@ M.default_opts = {
   -- Display strategy for normal mode
   normal_strategy = "hide_in_line",
   -- Display strategy for individual equations
-  inline_strategy_show = "show_overlay",
+  --   show_overlay
+  --   show_inline
+  inline_strategy_show = "show_inline",
   -- Center images for display equations
   center_display = true,
   -- Center images for inline equations

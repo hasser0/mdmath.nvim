@@ -51,7 +51,7 @@ local function inline_line(mark, equation, buffer)
     line[#line + 1] = unicode_at({ row = 1, col = i })
   end
   local extmark_id = vim.api.nvim_buf_set_extmark(buffer:get_bufnr(), NS_ID, start.row, start.col, {
-    virt_text = { { table.concat(line), "Normal" } },
+    virt_text = { { table.concat(line), mark:get_color_name() } },
     virt_text_pos = "inline",
     virt_text_hide = true,
     end_col = last.col,

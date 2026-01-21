@@ -61,7 +61,7 @@ export function makeAsyncStream(stream, sep) {
     const num = parseInt(str, 10);
 
     if (isNaN(num) || num < 0)
-      throw new Error(`InvalidInt${str}`);
+      throw new Error(`InvalidInt ${str}`);
     return num;
   }
 
@@ -70,7 +70,7 @@ export function makeAsyncStream(stream, sep) {
     const num = parseFloat(str);
 
     if (isNaN(num) || num < 0)
-      throw new Error(`InvalidFloat${str}`);
+      throw new Error(`InvalidFloat ${str}`);
     return num;
   }
 

@@ -35,6 +35,8 @@ function Mark.new(opts)
   -- positions
   self.start_row = opts.start_row
   self.start_col = opts.start_col
+  self.end_row = opts.end_row
+  self.end_col = opts.end_col
   self.ncells_h = opts.ncells_h
   self.ncells_w = opts.ncells_w
   self.offset = utils.mark.compute_offset(opts.buffer:get_bufnr(), opts.start_row, opts.start_col)
@@ -102,7 +104,7 @@ function Mark:update_position(opts)
 
   -- deleted mark
   if offset < opts.old_offset then
-    self:free()
+    self.is_valid = false
     return
   end
 
@@ -161,7 +163,10 @@ function Mark:get_start()
 end
 
 function Mark:get_end()
-
+  return {
+    row = self.end_row,
+    col = self.end_col,
+  }
 end
 
 function Mark:add_extmark(extmark_id)

@@ -12,6 +12,7 @@ local Mark = require("mdmath.mark")
 local kitty = require("mdmath.kitty")
 local config = require("mdmath.config").opts
 local utils = require("mdmath.utils")
+local terminfo = require("mdmath.terminfo")
 local equation_strategies = require("mdmath.equation_strategies")
 EQUATION_ID = 500
 
@@ -72,11 +73,9 @@ function Equation:request_image_mathjax(processor)
     processor:request_image({
       hash = self.hash,
       equation = self.equation,
-      ncells_w = self.ncells_w,
-      ncells_h = self.ncells_h,
-      inline = self.equation_type == EQUATION_TYPE.INLINE and 1 or 0,
-      flags = self:_get_flags(),
-      color = config.foreground,
+      ncellsWidth = self.ncells_w,
+      ncellsHeight = self.ncells_h,
+      equationType = self.equation_type == EQUATION_TYPE.INLINE and "inline" or "display",
     })
   end
 end
@@ -128,12 +127,19 @@ function Equation:get_message()
 end
 
 function Equation:get_dimensions()
-  return 1
+  local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
+  print(self.image_width, pixels_per_cell_w)
+  return {
+    ncells_w = math.ceil(self.image_width / pixels_per_cell_w),
+    ncells_h = math.ceil(self.image_height / pixels_per_cell_h),
+  }
 end
 
 function Equation:set_processor_result(event)
-  if event.event_type == "image" then
-    self.image_filename = event.path
+  if event.type == "image" then
+    self.image_filename = event.filename
+    self.image_width = event.imageWidth
+    self.image_height = event.imageHeight
     kitty.transfer_png_file({
       tty = self.buffer:get_tty(),
       png_path = self.image_filename,
@@ -145,7 +151,7 @@ function Equation:set_processor_result(event)
     elseif self.equation_type == EQUATION_TYPE.DISPLAY then
       self.show_function = equation_strategies["show_overlay"]
     end
-  elseif event.event_type == "error" then
+  elseif event.type == "error" then
     self.message = event.error
     self.show_function = equation_strategies["show_error"]
     self.hide_function = equation_strategies["hide_error"]
@@ -159,18 +165,6 @@ end
 
 function Equation:hide(mark, equation, buffer)
   self.hide_function(mark, equation, buffer)
-end
-
-function Equation:_get_flags()
-  local flags = 0
-  if (self.equation_type == EQUATION_TYPE.DISPLAY and config.center_display) or
-    (self.equation_type == EQUATION_TYPE.INLINE and config.center_inline) then
-    flags = flags + 2
-  end
-  if self.equation_type == EQUATION_TYPE.INLINE then
-    flags = flags + 4
-  end
-  return flags
 end
 
 function Equation:_get_equation_type()
