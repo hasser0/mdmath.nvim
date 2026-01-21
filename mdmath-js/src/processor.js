@@ -1,9 +1,10 @@
-import { mkdirSync } from "fs";
+import { rmdirSync, unlinkSync, mkdirSync } from "fs";
 import mathjax from "mathjax";
 import { listen } from "./reader.js";
 import { pngFitTo, rsvgConvert } from "./binaries.js";
 import { randomBytes } from "node:crypto";
 import { addCallbackOnExit } from "./onexit.js";
+import { sendNotification } from "./debug.js";
 
 const DIRECTORY_SUFFIX = randomBytes(6).toString("hex");
 const IMG_DIR = `/tmp/nvim-mdmath-${DIRECTORY_SUFFIX}`;
@@ -134,12 +135,12 @@ function main() {
   addCallbackOnExit(() => {
     equations.forEach((filename) => {
       try {
-        fs.unlinkSync(filename);
+        unlinkSync(filename);
       } catch (error) { }
     });
 
     try {
-      fs.rmdirSync(IMG_DIR);
+      rmdirSync(IMG_DIR);
     } catch (error) { }
   });
 
