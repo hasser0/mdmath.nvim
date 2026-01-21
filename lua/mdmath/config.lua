@@ -36,6 +36,8 @@ function M.set_options(opts)
   assert(type(M.opts.pixel_padding) == "number", "[MDMATH] 'pixel_padding' config expected number")
   assert(type(M.opts.bottom_line_ratio) == "number", "[MDMATH] 'bottom_line_ratio' config expected number")
   assert(type(M.opts.retry_mark_draw) == "number", "[MDMATH] 'retry_mark_draw' config expected number")
+  assert(type(M.opts.update_interval) == "number", "[MDMATH] 'update_interval' config expected number")
+  assert(type(M.opts.display_zoom) == "number", "[MDMATH] 'display_zoom' config expected number")
 
   assert(#M.opts.filetypes > 0, "[MDMATH] 'filetypes' config expected at least one item")
   assert(is_hex_color(M.opts.foreground), "[MDMATH] 'foreground' config expected valid hl or hex color")
@@ -45,6 +47,7 @@ function M.set_options(opts)
   local bottom_line_in_range = 0.00 <= M.opts.bottom_line_ratio and M.opts.bottom_line_ratio <= 0.2
   assert(bottom_line_in_range, "[MDMATH] 'bottom_line_ratio' config expected in [0.0, 0.2] interval")
   assert(M.opts.retry_mark_draw > 0, "[MDMATH] 'retry_mark_draw' config expected positive number")
+  assert(M.opts.display_zoom > 0.5, "[MDMATH] 'display_zoom' config expected number greater than 0.5")
   local mode_strategies = {
     hide_all = true,
     show_all = true,
@@ -54,8 +57,8 @@ function M.set_options(opts)
   assert(mode_strategies[M.opts.insert_strategy], "[MDMATH] 'insert_strategy' unexpected value")
   assert(mode_strategies[M.opts.normal_strategy], "[MDMATH] 'normal_strategy' unexpected value")
   local equation_strategies = {
-    OverlayStrategy = true,
-    InlineStrategy = true,
+    AdjustEquationToText = true,
+    AdjustTextToEquation = true,
   }
   assert(equation_strategies[M.opts.inline_strategy], "[MDMATH] 'inline_strategy' unexpected value")
 

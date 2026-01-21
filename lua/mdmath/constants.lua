@@ -15,9 +15,9 @@ M.default_opts = {
   -- Display strategy for normal mode
   normal_strategy = "hide_in_line",
   -- Display strategy for individual equations
-  --   InlineStrategy
-  --   OverlayStrategy
-  inline_strategy = "InlineStrategy",
+  --   AdjustTextToEquation
+  --   AdjustEquationToText
+  inline_strategy = "AdjustTextToEquation",
   -- Center images for display equations
   center_display = true,
   -- Center images for inline equations
@@ -28,6 +28,10 @@ M.default_opts = {
   bottom_line_ratio = 0.15,
   -- Retry marks in milliseconds
   retry_mark_draw = 3,
+  -- Milliseconds to redraw
+  update_interval = 50,
+  -- Zoom to apply to display images
+  display_zoom = 2.0,
 }
 
 M.diacritics = {

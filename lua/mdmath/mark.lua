@@ -135,6 +135,14 @@ function Mark:hide()
   self.equation:hide_mark(self)
 end
 
+function Mark:invalidate()
+  self.is_valid = false
+end
+
+function Mark:validate()
+  self.is_valid = true
+end
+
 function Mark:delete_extmarks()
   for _, extmark_id in ipairs(self.extmark_ids) do
     vim.api.nvim_buf_del_extmark(self.buffer:get_bufnr(), NS_ID, extmark_id)

@@ -23,6 +23,17 @@ local function _get_parser(bufnr, lang)
   return parser
 end
 
+local function _debounce(fn, ms)
+  local timer = vim.uv.new_timer()
+  return function(...)
+    local argv = {...}
+    timer:stop()
+    timer:start(ms, 0, vim.schedule_wrap(function()
+      fn(unpack(argv))
+    end))
+  end
+end
+
 function Buffer.enable_mdmath_for_buffer(bufnr)
   bufnr = bufnr ~= 0 and bufnr or vim.api.nvim_get_current_buf()
   if buffers[bufnr] then
@@ -38,6 +49,11 @@ function Buffer.disable_mdmath_for_buffer(bufnr)
   buffers[bufnr] = nil
 end
 
+function Buffer.clear_mdmath_for_buffer(bufnr)
+  bufnr = bufnr ~= 0 and bufnr or vim.api.nvim_get_current_buf()
+  buffers[bufnr]:free_equations()
+end
+
 function Buffer.new(bufnr)
   local self = {}
   setmetatable(self, Buffer)
@@ -50,59 +66,63 @@ function Buffer.new(bufnr)
   self.marks = {}
   self.parser = _get_parser(bufnr, "markdown")
   self.tty = vim.uv.new_tty(1, false)
-  self.timer = vim.uv.new_timer()
   self.active = true
 
   self.processor = Processor.new(self)
 
   -- attach to buf
-  vim.api.nvim_buf_attach(self.bufnr, false, {
-    on_bytes = function(_, _, _,
-                        start_row, start_col, start_offset,
-                        old_end_row, old_end_col, old_offset,
-                        new_end_row, new_end_col, new_offset)
-      self:_autocmd_update_bytes(_, _, _, start_row, start_col, start_offset,
-        old_end_row, old_end_col, old_offset,
-        new_end_row, new_end_col, new_offset)
-    end,
-  })
+  -- vim.api.nvim_buf_attach(self.bufnr, false, {
+  --   on_bytes = function(_, _, _,
+  --                       start_row, start_col, start_offset,
+  --                       old_end_row, old_end_col, old_offset,
+  --                       new_end_row, new_end_col, new_offset)
+  --     self:_autocmd_update_bytes(_, _, _, start_row, start_col, start_offset,
+  --       old_end_row, old_end_col, old_offset,
+  --       new_end_row, new_end_col, new_offset)
+  --   end,
+  -- })
+
   -- create autocmds
   vim.api.nvim_create_autocmd({ "VimLeave", "BufLeave" }, {
     buffer = self.bufnr,
     group = augroup,
-    callback = function()
+    callback = function(args)
       self:free()
     end
   })
   vim.api.nvim_create_autocmd({ "VimResized" }, {
-    callback = function()
-      vim.schedule(function()
-        terminfo.refresh_terminal()
-        self.processor:set_cell_sizes()
-        self:_free_equations()
-        self:_loop()
-      end)
-    end
+    callback = _debounce(function(args)
+      terminfo.refresh_terminal()
+      self.processor:set_cell_sizes()
+      self:free_equations()
+      self:_loop()
+    end, config.update_interval)
   })
   vim.api.nvim_create_autocmd({ "WinScrolled", "BufEnter" }, {
     buffer = self.bufnr,
     group = augroup,
-    callback = function()
+    callback = _debounce(function(args)
       self:_loop()
-    end
+    end, config.update_interval)
   })
   vim.api.nvim_create_autocmd({ "CursorMoved" }, {
     buffer = self.bufnr,
     group = augroup,
-    callback = function()
+    callback = _debounce(function(args)
       self:normal_display(self.marks)
-    end
+    end, config.update_interval)
   })
   vim.api.nvim_create_autocmd({ "ModeChanged" }, {
     buffer = self.bufnr,
     group = augroup,
-    callback = function()
-      self:_autocmd_update_mode()
+    callback = function(args)
+      local old_mode = vim.v.event.old_mode:sub(1, 1)
+      local mode = vim.v.event.new_mode:sub(1, 1)
+      -- Mode is the same when deleting char with "x"
+      if old_mode == mode then
+        return
+      end
+      self:_autocmd_update_mode(old_mode, mode)
       self:_loop()
     end
   })
@@ -115,9 +135,8 @@ function Buffer:free()
     return
   end
   self.active = false
-  self:_free_equations()
+  self:free_equations()
   self.processor:free()
-  self.timer:stop()
   buffers[self.bufnr] = nil
 
   vim.api.nvim_clear_autocmds({
@@ -135,7 +154,9 @@ function Buffer:get_tty()
 end
 
 function Buffer:notify_processor(event)
-  self.equations[event.hash]:set_processor_result(event)
+  if event.hash then
+    self.equations[event.hash]:set_processor_result(event)
+  end
 end
 
 function Buffer:remove_mark(mark)
@@ -159,7 +180,7 @@ function Buffer:_draw()
   end
 end
 
-function Buffer:_free_equations()
+function Buffer:free_equations()
   for _, equation in pairs(self.equations) do
     equation:free()
   end
@@ -197,17 +218,27 @@ function Buffer:_parse_line_range()
       }
     end
   end)
+  for _, mark in pairs(self.marks) do
+    mark:invalidate()
+  end
   for equation_hash, locations in pairs(new_locations) do
     for _, loc in ipairs(locations) do
-      local mark = self.equations[equation_hash]:create_new_mark({
+      local mark, exists = self.equations[equation_hash]:get_or_create_mark({
         start_row = loc.start_row,
         start_col = loc.start_col,
         end_row = loc.end_row,
         end_col = loc.end_col,
       })
-      if mark then
+      if not exists then
         self.marks[mark:get_hash()] = mark
+      else
+        mark:validate()
       end
+    end
+  end
+  for _, mark in pairs(self.marks) do
+    if not mark:is_alive() then
+      mark:free()
     end
   end
 end
@@ -240,12 +271,7 @@ function Buffer:_autocmd_update_bytes(_, _, _,
   end
 end
 
-function Buffer:_autocmd_update_mode()
-  local old_mode = vim.v.event.old_mode:sub(1, 1)
-  local mode = vim.v.event.new_mode:sub(1, 1)
-  if old_mode == mode then
-    return
-  end
+function Buffer:_autocmd_update_mode(old_mode, mode)
   if mode == "i" or mode == "R" then
     self.mode = BUFFER_MODE.INSERT
   elseif mode == "n" then

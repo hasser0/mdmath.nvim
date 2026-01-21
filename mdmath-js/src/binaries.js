@@ -59,60 +59,26 @@ const magickBinary = new Promise(async (resolve) => {
   });
 });
 
-export async function pngFitTo(input, output, opts) {
-  const size = `${opts.width}x${opts.height}`;
+export async function magick(input, args) {
   const magick = await magickBinary;
-  const { imageHeight, height, pixelPadding, bottomLineHeight } = opts;
-
-  let args = ["png:-", "-trim", "+repage", "-background", "none"];
-
-  // 1. If image is too tall: Shrink and add padding above/below
-  if (imageHeight > height) {
-    const shrinkTargetHeight = height - (pixelPadding * 2);
-    args.push(
-      "-resize", `x${shrinkTargetHeight}`,
-      "-gravity", "center",
-      "-extent", size
-    );
-  } else if (imageHeight < height && (2 * bottomLineHeight + imageHeight) > height) {
-    // 2. If image is small but the "bottom line" would overflow: Just center it
-    args.push(
-      "-gravity", "center",
-      "-extent", size
-    );
-  } else {
-    // 3. If there is plenty of room: Trim bottom and add specific bottomLineHeight
-    args.push(
-      "-gravity", "south",
-      "-splice", `0x${bottomLineHeight}`,
-      "-extent", size
-    );
-  }
-  args.push(`png:${output}`);
-
   return new Promise((resolve, reject) => {
     const p = spawn(magick.convert, args);
     let stderr = "";
     p.stderr.on("data", (chunk) => stderr += chunk);
     p.on("close", (code) => {
-      if (code !== 0)
+      if (code !== 0) {
         return reject(new Error(`pngFitTo: ${stderr}`));
+      }
 
-      resolve({ width: opts.width, height: opts.height });
+      resolve(true);
     });
     p.stdin.write(input);
     p.stdin.end();
   });
 }
 
-export async function rsvgConvert(svg, opts) {
+export async function rsvgConvert(svg, args) {
   const rsvg = await rsvgBinary;
-
-  const args = [];
-  args.push("--format", "png");
-  for (const opt in opts) {
-    args.push(`--${opt.replaceAll("_", "-")}`, opts[opt]);
-  }
 
   return new Promise((resolve, reject) => {
     const p = spawn(rsvg, args);
@@ -130,7 +96,7 @@ export async function rsvgConvert(svg, opts) {
         const heightIndex = widthIndex + 4;
         const width = data.readUInt32BE(widthIndex);
         const height = data.readUInt32BE(heightIndex);
-        resolve({ data: data, width: width, height: height });
+        resolve({ data: data, imageWidth: width, imageHeight: height });
       }
     });
     p.stdin.write(svg);

@@ -60,10 +60,11 @@ function Processor:set_configs()
     type = "config",
     bottomLineRatio = config.bottom_line_ratio,
     pixelPadding = config.pixel_padding,
+    displayZoom = config.display_zoom,
     centerInline = config.center_inline,
     centerDisplay = config.center_display,
     foreground = config.foreground,
-    displayMethod = "OverlayStrategy",
+    displayMethod = "AdjustEquationToText",
     inlineMethod = config.inline_strategy,
   })
 end

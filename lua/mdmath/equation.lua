@@ -81,8 +81,8 @@ function Equation:request_image_mathjax(processor)
     processor:request_image({
       hash = self.hash,
       equation = self.equation,
-      ncellsWidth = self.ncells_w,
-      ncellsHeight = self.ncells_h,
+      numberCellsWidth = self.ncells_w,
+      numberCellsHeight = self.ncells_h,
       equationType = self.equation_mode == EQUATION_MODE.INLINE and "inline" or "display",
     })
   end
@@ -99,13 +99,16 @@ end
   ---end_row: number,
   ---end_col: number,
   ---}
-function Equation:create_new_mark(opts)
-  local already_exists = false
+function Equation:get_or_create_mark(opts)
+  local found_mark = nil
   for _, mark in pairs(self.marks) do
-    already_exists = already_exists or mark:is_location(opts.start_row, opts.start_col)
+    if mark:is_location(opts.start_row, opts.start_col) then
+      found_mark = mark
+      break
+    end
   end
-  if already_exists then
-    return nil
+  if found_mark then
+    return found_mark, true
   end
   local mark = Mark.new({
     equation = self,
@@ -119,7 +122,7 @@ function Equation:create_new_mark(opts)
     end_col = opts.end_col,
   })
   self.marks[mark:get_hash()] = mark
-  return mark
+  return mark, false
 end
 
 function Equation:is_message()
@@ -210,7 +213,7 @@ function Equation:_get_mark_strategy()
       self.equation_strategy = equation_strategies[config.inline_strategy]
       return self.equation_strategy
     elseif self.equation_mode == EQUATION_MODE.DISPLAY then
-      self.equation_strategy = equation_strategies["OverlayStrategy"]
+      self.equation_strategy = equation_strategies["AdjustEquationToText"]
       return self.equation_strategy
     end
   end

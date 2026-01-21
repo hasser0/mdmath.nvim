@@ -22,6 +22,10 @@ function M.disable(bufnr)
   require("mdmath.buffer").disable_mdmath_for_buffer(bufnr or 0)
 end
 
+function M.clear(bufnr)
+  require("mdmath.buffer").clear_mdmath_for_buffer(bufnr or 0)
+end
+
 function M.build()
   require("mdmath.build").build()
 end

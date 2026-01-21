@@ -1,27 +1,30 @@
 import { rmdirSync, unlinkSync, mkdirSync } from "fs";
 import mathjax from "mathjax";
 import { listen } from "./reader.js";
-import { pngFitTo, rsvgConvert } from "./binaries.js";
+import { magick, rsvgConvert } from "./binaries.js";
 import { randomBytes } from "node:crypto";
 import { addCallbackOnExit } from "./onexit.js";
 
 const DIRECTORY_SUFFIX = randomBytes(6).toString("hex");
 const IMG_DIR = `/tmp/nvim-mdmath-${DIRECTORY_SUFFIX}`;
 const equations = [];
-const svgCache = {};
 let mathjaxProcessor = null;
-// pixesl
-const zoomPixelsRatio = 16
-let cellHeightInPixels = 0
-let cellWidthInPixels = 0
+// pixels
+const zoomPixelsRatio = 16;
+let displayZoom = 1;
+let cellHeightInPixels = 0;
+let cellWidthInPixels = 0;
 // config
-let bottomLineRatio = 0
-let pixelPadding = 0
-let displayMethod = null
-let inlineMethod = null
-let centerInline = true
-let centerDisplay = true
-let foreground = null
+const methodsMap = {
+  AdjustEquationToText: adjustEquationToText,
+  AdjustTextToEquation: adjustTextToEquation,
+};
+let bottomLineRatio = 0;
+let pixelPadding = 0;
+let methods = { display: null, inline: null, };
+let centerInline = true;
+let centerDisplay = true;
+let foreground = null;
 
 class MathError extends Error {
   constructor(message) {
@@ -35,32 +38,114 @@ function send_json(resp) {
   process.stdout.write(`${jsonStr.length}:${jsonStr}:`);
 }
 
-// TODO make each convert method a class
 async function equationToSVG(equation, opts) {
-  if (equation in svgCache) {
-    return svgCache[equation];
-  }
   try {
     const svg = await mathjaxProcessor.tex2svgPromise(equation, opts);
-    return svgCache[equation] = { svg: mathjaxProcessor.startup.adaptor.innerHTML(svg) }
+    return { svg: mathjaxProcessor.startup.adaptor.innerHTML(svg) }
   } catch (error) {
     if (error instanceof MathError) {
-      return svgCache[equation] = { error: error.message }
+      return { error: error.message }
     }
     throw error;
   }
 }
 
-async function processEquation(req) {
-  const isDisplay = (req.equationType === "display");
-  const config = {
-    isDisplay: isDisplay,
-    isCenter: (isDisplay && centerDisplay) || (!isDisplay && centerInline),
-    terminalWidth: req.ncellsWidth * cellWidthInPixels,
-    terminalHeight: req.ncellsHeight * cellHeightInPixels,
-    filename: `${IMG_DIR}/${req.hash}.png`,
+// isDisplay
+// isCenter
+// numberPixelsWidth
+// numberPixelsHeight
+// filename
+// hash
+// equation
+// numberCellsWidth
+// numberCellsHeight
+// equationType
+async function adjustEquationToText(svg, opts) {
+  // zoom up to text width
+  const currentDisplay = opts.isDisplay ? displayZoom : 1;
+  let png = await rsvgConvert(svg, [
+    "--zoom", `${currentDisplay * cellHeightInPixels / zoomPixelsRatio}`,
+    "--width", `${opts.numberPixelsWidth}px`,
+    "--height", `${opts.numberPixelsHeight}px`,
+    "--format", "png",
+  ]);
+
+  const ceilPNGImage = Math.ceil(png.imageHeight / cellHeightInPixels) * cellHeightInPixels;
+  const fullHeightText = cellHeightInPixels * opts.numberCellsHeight;
+  const ceilImageHeight = opts.isDisplay ? fullHeightText : ceilPNGImage;
+  const bottomLineHeight = bottomLineRatio * cellHeightInPixels;
+  const args = ["png:-", "-trim", "+repage", "-background", "none"];
+  if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
+    args.push(
+      "-gravity", "center",
+      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`,
+    );
+  } else {
+    args.push(
+      "-gravity", "south",
+      "-splice", `0x${bottomLineHeight}`,
+      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`,
+    );
   }
-  const method = isDisplay ? displayMethod : inlineMethod;
+  args.push(`png:${opts.filename}`);
+  await magick(png.data, args);
+  return new Promise((resolve, _) => {
+    resolve({
+      imageHeight: ceilImageHeight,
+      imageWidth: opts.numberPixelsWidth,
+    })
+  });
+}
+
+async function adjustTextToEquation(svg, opts) {
+  // zoom but keep under size limited to two cells in height
+  const currentDisplay = opts.isDisplay ? displayZoom : 1;
+  const argSVG = [
+    "--zoom", `${currentDisplay * cellHeightInPixels / zoomPixelsRatio}`,
+  ];
+  if (!opts.isDisplay) {
+    argSVG.push("--height", `${cellHeightInPixels}px`);
+  }
+  argSVG.push("--format", "png");
+  let png = await rsvgConvert(svg, argSVG);
+
+
+
+  const ceilPNGImage = Math.ceil(png.imageHeight / cellHeightInPixels) * cellHeightInPixels;
+  const fullHeightText = cellHeightInPixels * opts.numberCellsHeight;
+  const ceilImageHeight = opts.isDisplay ? fullHeightText : ceilPNGImage;
+  const ceilImageWidth = Math.ceil(png.imageWidth / cellWidthInPixels) * cellWidthInPixels;
+  const bottomLineHeight = bottomLineRatio * cellHeightInPixels;
+  const args = ["png:-", "-trim", "+repage", "-background", "none"];
+  if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
+    args.push(
+      "-gravity", "center",
+      "-extent", `${ceilImageWidth}x${ceilImageHeight}`,
+    );
+  } else {
+    args.push(
+      "-gravity", "south",
+      "-splice", `0x${bottomLineHeight}`,
+      "-extent", `${ceilImageWidth}x${ceilImageHeight}`,
+    );
+  }
+  args.push(`png:${opts.filename}`);
+  await magick(png.data, args);
+  return new Promise((resolve, _) => {
+    resolve({
+      imageHeight: ceilImageHeight,
+      imageWidth: ceilImageWidth,
+    })
+  });
+}
+
+async function processEquation(req) {
+  req.isDisplay = (req.equationType === "display");
+  const svg2png = methods[req.equationType];
+  req.isCenter = (req.isDisplay && centerDisplay) || (!req.isDisplay && centerInline);
+  req.numberPixelsWidth = req.numberCellsWidth * cellWidthInPixels;
+  req.numberPixelsHeight = req.numberCellsHeight * cellHeightInPixels;
+  req.filename = `${IMG_DIR}/${req.hash}.png`;
 
   if (!req.equation || req.equation.trim().length === 0) {
     send_json({
@@ -71,37 +156,25 @@ async function processEquation(req) {
     return
   }
 
-  let result = await equationToSVG(req.equation, { display: config.isDisplay, });
+  let result = await equationToSVG(req.equation, { display: req.isDisplay, });
   if (result.error) {
     send_json({
       type: "error",
-      hash: hash,
+      hash: req.hash,
       error: result.error,
     });
     return
   }
-
   let svg = result.svg.replace(/currentColor/g, foreground).replace(/style="[^"]+"/, "")
-  let basePNG = await rsvgConvert(svg, { zoom: cellHeightInPixels / zoomPixelsRatio, });
-  const pngFitOpts = {
-    width: config.terminalWidth,
-    height: config.terminalHeight,
-    center: config.isCenter,
-    method: method,
-    bottomLineHeight: Math.floor(cellHeightInPixels * bottomLineRatio),
-    pixelPadding: pixelPadding,
-    imageHeight: basePNG.height,
-    imageWidth: basePNG.width,
-  }
-  await pngFitTo(basePNG.data, config.filename, pngFitOpts);
+  equations.push(req.filename);
+  let png = await svg2png(svg, req);
 
-  equations.push(config.filename);
   send_json({
     type: "image",
     hash: req.hash,
-    filename: config.filename,
-    imageHeight: pngFitOpts.height,
-    imageWidth: pngFitOpts.width,
+    filename: req.filename,
+    imageHeight: png.imageHeight,
+    imageWidth: png.imageWidth,
   });
 }
 
@@ -112,8 +185,9 @@ function processMessage(req) {
   } else if (req.type == "config") {
     bottomLineRatio = req.bottomLineRatio;
     pixelPadding = req.pixelPadding;
-    displayMethod = req.displayMethod;
-    inlineMethod = req.inlineMethod;
+    displayZoom = req.displayZoom;
+    methods["inline"] = methodsMap[req.inlineMethod];
+    methods["display"] = methodsMap[req.displayMethod];
     centerInline = req.centerInline;
     centerDisplay = req.centerDisplay;
     foreground = req.foreground;
