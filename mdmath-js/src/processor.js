@@ -71,7 +71,7 @@ async function processEquation(req) {
     return
   }
 
-  let result = await equationToSVG(req.equation, { display: !config.isDisplay, });
+  let result = await equationToSVG(req.equation, { display: config.isDisplay, });
   if (result.error) {
     send_json({
       type: "error",
