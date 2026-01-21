@@ -2,6 +2,11 @@ local Equation = {}
 Equation.__index = Equation
 
 local EQUATION_TYPE = {
+  IMAGE = 1,
+  ERROR = 2
+}
+
+local EQUATION_MODE = {
   INLINE = 1,
   DISPLAY = 2,
   NONE = 3,
@@ -10,9 +15,9 @@ local EQUATION_TYPE = {
 local hl = require("mdmath.highlight_colors")
 local Mark = require("mdmath.mark")
 local kitty = require("mdmath.kitty")
-local config = require("mdmath.config").opts
 local utils = require("mdmath.utils")
 local terminfo = require("mdmath.terminfo")
+local config = require("mdmath.config").opts
 local equation_strategies = require("mdmath.equation_strategies")
 EQUATION_ID = 500
 
@@ -29,12 +34,15 @@ function Equation.new(opts)
   self.buffer = opts.buffer
   self.hash = opts.hash
   self.text = opts.text
+  self.equation_strategy = nil
 
   self.equation = opts.text:gsub("^%$*(.-)%$*$", "%1"):gsub("[\n\r]", "")
-  self.equation_type = self:_get_equation_type()
+  self:_set_equation_mode()
+  self.equation_type = nil
   self.is_displayable = false
   self.image_filename = nil
   self.marks = {}
+  self.mark_strategy = nil
   self.show_function = nil
   self.hide_equation = nil
 
@@ -75,7 +83,7 @@ function Equation:request_image_mathjax(processor)
       equation = self.equation,
       ncellsWidth = self.ncells_w,
       ncellsHeight = self.ncells_h,
-      equationType = self.equation_type == EQUATION_TYPE.INLINE and "inline" or "display",
+      equationType = self.equation_mode == EQUATION_MODE.INLINE and "inline" or "display",
     })
   end
 end
@@ -114,10 +122,6 @@ function Equation:create_new_mark(opts)
   return mark
 end
 
-function Equation:is_ready()
-  return self.is_displayable
-end
-
 function Equation:is_message()
   return self.message
 end
@@ -128,8 +132,9 @@ end
 
 function Equation:get_dimensions()
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
-  print(self.image_width, pixels_per_cell_w)
   return {
+    npixel_w = self.image_width,
+    npixel_h = self.image_height,
     ncells_w = math.ceil(self.image_width / pixels_per_cell_w),
     ncells_h = math.ceil(self.image_height / pixels_per_cell_h),
   }
@@ -137,51 +142,78 @@ end
 
 function Equation:set_processor_result(event)
   if event.type == "image" then
+    self.equation_type = EQUATION_TYPE.IMAGE
     self.image_filename = event.filename
     self.image_width = event.imageWidth
     self.image_height = event.imageHeight
-    kitty.transfer_png_file({
-      tty = self.buffer:get_tty(),
-      png_path = self.image_filename,
-      image_id = self.id
-    })
-    self.hide_function = equation_strategies["hide_equation"]
-    if self.equation_type == EQUATION_TYPE.INLINE then
-      self.show_function = equation_strategies[config.inline_strategy_show]
-    elseif self.equation_type == EQUATION_TYPE.DISPLAY then
-      self.show_function = equation_strategies["show_overlay"]
-    end
+    self:_transfer_png_file()
+    self.is_displayable = true
   elseif event.type == "error" then
+    self.equation_type = EQUATION_TYPE.ERROR
     self.message = event.error
-    self.show_function = equation_strategies["show_error"]
-    self.hide_function = equation_strategies["hide_error"]
+    self.is_displayable = true
   end
-  self.is_displayable = true
 end
 
-function Equation:show(mark, equation, buffer)
-  self.show_function(mark, equation, buffer)
-end
-
-function Equation:hide(mark, equation, buffer)
-  self.hide_function(mark, equation, buffer)
-end
-
-function Equation:_get_equation_type()
-  if self.equation_type then
-    return self.equation_type
+function Equation:show_mark(mark)
+  if not self.is_displayable then
+    vim.defer_fn(function()
+      self:show_mark(mark)
+    end, config.retry_mark_draw)
+    return
   end
+  local strategy = self:_get_mark_strategy()
+  strategy.create_extmarks(mark, self, self.buffer)
+  strategy.show(mark, self, self.buffer)
+end
 
+function Equation:hide_mark(mark)
+  if not self.is_displayable then
+    vim.defer_fn(function()
+      self:hide()
+    end, config.retry_mark_draw)
+    return
+  end
+  local strategy = self:_get_mark_strategy()
+  strategy.hide(mark, self, self.buffer)
+end
+
+function Equation:_set_equation_mode()
   if self.text:sub(1, 2) == "$$" and self.text:sub(-2) == "$$" then
-    self.equation_type = EQUATION_TYPE.DISPLAY
+    self.equation_mode = EQUATION_MODE.DISPLAY
   elseif self.text:sub(1, 2) == "\\[" and self.text:sub(-2) == "\\]" then
-    self.equation_type = EQUATION_TYPE.DISPLAY
+    self.equation_mode = EQUATION_MODE.DISPLAY
   elseif self.text:sub(1, 1) == "$" and self.text:sub(-1) == "$" then
-    self.equation_type = EQUATION_TYPE.INLINE
+    self.equation_mode = EQUATION_MODE.INLINE
   else
-    self.equation_type = EQUATION_TYPE.NONE
+    self.equation_mode = EQUATION_MODE.NONE
   end
-  return self.equation_type
+end
+
+function Equation:_transfer_png_file()
+  kitty.transfer_png_file({
+    tty = self.buffer:get_tty(),
+    png_path = self.image_filename,
+    image_id = self.id
+  })
+end
+
+function Equation:_get_mark_strategy()
+  if self.equation_strategy then
+    return self.equation_strategy
+  end
+  if self.equation_type == EQUATION_TYPE.ERROR then
+    self.equation_strategy = equation_strategies["ErrorStrategy"]
+    return self.equation_strategy
+  elseif self.equation_type == EQUATION_TYPE.IMAGE then
+    if self.equation_mode == EQUATION_MODE.INLINE then
+      self.equation_strategy = equation_strategies[config.inline_strategy]
+      return self.equation_strategy
+    elseif self.equation_mode == EQUATION_MODE.DISPLAY then
+      self.equation_strategy = equation_strategies["OverlayStrategy"]
+      return self.equation_strategy
+    end
+  end
 end
 
 return Equation

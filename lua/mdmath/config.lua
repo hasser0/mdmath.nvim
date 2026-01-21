@@ -28,8 +28,9 @@ function M.set_options(opts)
 
   assert(type(M.opts.filetypes) == "table", "[MDMATH] 'filetypes' config expected list")
   assert(type(M.opts.foreground) == "string", "[MDMATH] 'foreground' config expected string")
-  assert(type(M.opts.insert_strategy) == "string", "[MDMATH] 'foreground' config expected string")
-  assert(type(M.opts.normal_strategy) == "string", "[MDMATH] 'foreground' config expected string")
+  assert(type(M.opts.insert_strategy) == "string", "[MDMATH] 'insert_strategy' config expected string")
+  assert(type(M.opts.normal_strategy) == "string", "[MDMATH] 'normal_strategy' config expected string")
+  assert(type(M.opts.inline_strategy) == "string", "[MDMATH] 'inline_strategy' config expected string")
   assert(type(M.opts.center_display) == "boolean", "[MDMATH] 'center_display' config expected boolean")
   assert(type(M.opts.center_inline) == "boolean", "[MDMATH] 'center_inline' config expected boolean")
   assert(type(M.opts.pixel_padding) == "number", "[MDMATH] 'pixel_padding' config expected number")
@@ -44,14 +45,19 @@ function M.set_options(opts)
   local bottom_line_in_range = 0.00 <= M.opts.bottom_line_ratio and M.opts.bottom_line_ratio <= 0.2
   assert(bottom_line_in_range, "[MDMATH] 'bottom_line_ratio' config expected in [0.0, 0.2] interval")
   assert(M.opts.retry_mark_draw > 0, "[MDMATH] 'retry_mark_draw' config expected positive number")
-  local display_strategies = {
+  local mode_strategies = {
     hide_all = true,
     show_all = true,
     hide_in_cursor = true,
     hide_in_line = true,
   }
-  assert(display_strategies[M.opts.insert_strategy], "[MDMATH] 'insert_strategy' unexpected value")
-  assert(display_strategies[M.opts.normal_strategy], "[MDMATH] 'normal_strategy' unexpected value")
+  assert(mode_strategies[M.opts.insert_strategy], "[MDMATH] 'insert_strategy' unexpected value")
+  assert(mode_strategies[M.opts.normal_strategy], "[MDMATH] 'normal_strategy' unexpected value")
+  local equation_strategies = {
+    OverlayStrategy = true,
+    InlineStrategy = true,
+  }
+  assert(equation_strategies[M.opts.inline_strategy], "[MDMATH] 'inline_strategy' unexpected value")
 
   M.is_loaded = true
 end

@@ -91,15 +91,13 @@ function Buffer.new(bufnr)
       self:_loop()
     end
   })
-  if config.anticonceal then
-    vim.api.nvim_create_autocmd({ "CursorMoved" }, {
-      buffer = self.bufnr,
-      group = augroup,
-      callback = function()
-        self:normal_display(self.marks)
-      end
-    })
-  end
+  vim.api.nvim_create_autocmd({ "CursorMoved" }, {
+    buffer = self.bufnr,
+    group = augroup,
+    callback = function()
+      self:normal_display(self.marks)
+    end
+  })
   vim.api.nvim_create_autocmd({ "ModeChanged" }, {
     buffer = self.bufnr,
     group = augroup,

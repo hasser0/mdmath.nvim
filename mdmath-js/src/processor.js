@@ -4,7 +4,6 @@ import { listen } from "./reader.js";
 import { pngFitTo, rsvgConvert } from "./binaries.js";
 import { randomBytes } from "node:crypto";
 import { addCallbackOnExit } from "./onexit.js";
-import { sendNotification } from "./debug.js";
 
 const DIRECTORY_SUFFIX = randomBytes(6).toString("hex");
 const IMG_DIR = `/tmp/nvim-mdmath-${DIRECTORY_SUFFIX}`;

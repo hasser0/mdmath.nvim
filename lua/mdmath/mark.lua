@@ -2,7 +2,6 @@ local Mark = {}
 Mark.__index = Mark
 
 local utils = require("mdmath.utils")
-local config = require("mdmath.config").opts
 MARK_ID = 1
 
 local function _get_id()
@@ -124,22 +123,16 @@ function Mark:show()
   if self.is_displayed then
     return
   end
-  if not self.equation:is_ready() then
-    vim.defer_fn(function()
-      self:show()
-    end, config.retry_mark_draw)
-    return
-  end
-  self.equation:show(self, self.equation, self.buffer)
   self.is_displayed = true
+  self.equation:show_mark(self)
 end
 
 function Mark:hide()
   if not self.is_displayed then
     return
   end
-  self.equation:hide(self, self.equation, self.buffer)
   self.is_displayed = false
+  self.equation:hide_mark(self)
 end
 
 function Mark:delete_extmarks()
@@ -180,81 +173,5 @@ end
 function Mark:get_id()
   return self.id
 end
-
--- function Mark:_show_equation()
---   self:_process_overlay_lines()
---   if not self.equation:is_ready() then
---     vim.defer_fn(function()
---       self:show()
---     end, config.retry_mark_draw)
---     return
---   end
---   kitty.display_image_placement({
---     tty = self.buffer:get_tty(),
---     image_id = self.equation:get_id(),
---     placement_id = self.id,
---     row = self.start_row,
---     col = self.start_col,
---   })
---   self.is_displayed = true
--- end
---
--- function Mark:_show_error()
---   self:_process_eol_line()
---   self.is_displayed = true
--- end
---
--- function Mark:_hide_equation()
---   kitty.delete_image_placement({
---     tty = self.buffer:get_tty(),
---     image_id = self.equation:get_id(),
---     placement_id = self.id,
---   })
---   self.is_displayed = false
---   for _, extmark_id in ipairs(self.extmark_ids) do
---     vim.api.nvim_buf_del_extmark(self.buffer:get_bufnr(), NS_ID, extmark_id)
---   end
---   self.is_displayed = false
--- end
---
--- function Mark:_hide_error()
---   for _, extmark_id in ipairs(self.extmark_ids) do
---     vim.api.nvim_buf_del_extmark(self.buffer:get_bufnr(), NS_ID, extmark_id)
---   end
---   self.is_displayed = false
--- end
---
--- function Mark:_process_eol_line()
---   vim.schedule(function()
---     local extmark_id = vim.api.nvim_buf_set_extmark(self.buffer:get_bufnr(), NS_ID, self.start_row, self.start_col, {
---       virt_text = { { self.equation:get_message(), "Error" } },
---       virt_text_pos = "eol",
---     })
---     self.extmark_ids[#self.extmark_ids + 1] = extmark_id
---     self.text_ready = true
---   end)
--- end
---
--- function Mark:_process_overlay_lines()
---   local overlay_lines = {}
---   for i = 1, self.ncells_h do
---     local overlay_text = {}
---     for j = 1, self.ncells_w do
---       overlay_text[#overlay_text + 1] = unicode_at({ row = i, col = j })
---     end
---     overlay_lines[#overlay_lines + 1] = table.concat(overlay_text)
---   end
---   vim.schedule(function()
---     for i, line in ipairs(overlay_lines) do
---       local extmark_id = vim.api.nvim_buf_set_extmark(self.buffer:get_bufnr(), NS_ID, self.start_row - 1 + i, self.start_col, {
---         virt_text = { { line, self.color_name } },
---         virt_text_pos = "overlay",
---         virt_text_hide = true,
---       })
---       self.extmark_ids[#self.extmark_ids + 1] = extmark_id
---     end
---     self.text_ready = true
---   end)
--- end
 
 return Mark

@@ -63,8 +63,8 @@ function Processor:set_configs()
     centerInline = config.center_inline,
     centerDisplay = config.center_display,
     foreground = config.foreground,
-    displayMethod = "overlay_show",
-    inlineMethod = config.inline_strategy_show,
+    displayMethod = "OverlayStrategy",
+    inlineMethod = config.inline_strategy,
   })
 end
 
