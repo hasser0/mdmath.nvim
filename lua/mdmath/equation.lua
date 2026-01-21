@@ -1,4 +1,4 @@
-Equation = {}
+local Equation = {}
 Equation.__index = Equation
 
 local EQUATION_TYPE = {
@@ -8,28 +8,16 @@ local EQUATION_TYPE = {
 }
 
 local hl = require("mdmath.highlight_colors")
+local Mark = require("mdmath.mark")
 local kitty = require("mdmath.kitty")
 local config = require("mdmath.config").opts
-local Mark = require("mdmath.Mark")
+local utils = require("mdmath.utils")
+local equation_strategies = require("mdmath.equation_strategies")
 EQUATION_ID = 500
 
 local function _get_id()
   EQUATION_ID = EQUATION_ID + 1
   return EQUATION_ID
-end
-
-local function split_text_in_lines(text)
-  local lines
-  if text:find("\n") then
-    lines = vim.split(text, "\n")
-  else
-    lines = { text }
-  end
-  return lines
-end
-
-function Equation.hash_equation(equation)
-  return vim.fn.system("sha256sum", equation):sub(1, 16)
 end
 
 function Equation.new(opts)
@@ -46,8 +34,10 @@ function Equation.new(opts)
   self.is_displayable = false
   self.image_filename = nil
   self.marks = {}
+  self.show_function = nil
+  self.hide_equation = nil
 
-  local lines = split_text_in_lines(opts.text)
+  local lines = utils.equation.split_text_in_lines(opts.text)
   local lines_width = {}
   for _, line in pairs(lines) do
     lines_width[#lines_width+1] = line:len()
@@ -130,28 +120,45 @@ function Equation:is_ready()
 end
 
 function Equation:is_message()
-  return self.message ~= nil
+  return self.message
 end
 
 function Equation:get_message()
   return self.message
 end
 
-function Equation:set_message(msg)
-  self.message = msg
-  self.is_displayable = true
+function Equation:get_dimensions()
+  return 1
 end
 
-function Equation:set_image_path(path)
-  self.image_filename = path
-  if not self.is_displayable then
+function Equation:set_processor_result(event)
+  if event.event_type == "image" then
+    self.image_filename = event.path
     kitty.transfer_png_file({
       tty = self.buffer:get_tty(),
       png_path = self.image_filename,
       image_id = self.id
     })
-    self.is_displayable = true
+    self.hide_function = equation_strategies["hide_equation"]
+    if self.equation_type == EQUATION_TYPE.INLINE then
+      self.show_function = equation_strategies[config.inline_strategy_show]
+    elseif self.equation_type == EQUATION_TYPE.DISPLAY then
+      self.show_function = equation_strategies["show_overlay"]
+    end
+  elseif event.event_type == "error" then
+    self.message = event.error
+    self.show_function = equation_strategies["show_error"]
+    self.hide_function = equation_strategies["hide_error"]
   end
+  self.is_displayable = true
+end
+
+function Equation:show(mark, equation, buffer)
+  self.show_function(mark, equation, buffer)
+end
+
+function Equation:hide(mark, equation, buffer)
+  self.hide_function(mark, equation, buffer)
 end
 
 function Equation:_get_flags()

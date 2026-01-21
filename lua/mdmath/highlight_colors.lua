@@ -1,6 +1,6 @@
-M = {}
+local M = {}
 
-local MDMATH_HIGHLIGHT_PREFIX = "mdmath-hl-"
+local MDMATH_HIGHLIGHT_PREFIX = "MdmathHL-"
 
 function M.register_color_as_highlight(color)
   assert(type(color) == "number", "key must be a number")

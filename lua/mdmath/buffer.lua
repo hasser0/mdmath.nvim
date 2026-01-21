@@ -1,13 +1,19 @@
-Buffer = {}
+local Buffer = {}
 Buffer.__index = Buffer
 
-local Equation = require("mdmath.Equation")
-local Processor = require("mdmath.Processor")
-local Mark = require("mdmath.Mark")
+local Equation = require("mdmath.equation")
+local Processor = require("mdmath.processor")
+local buffer_strategies = require("mdmath.buffer_strategies")
 local config = require("mdmath.config").opts
+local utils = require("mdmath.utils")
 local terminfo = require("mdmath.terminfo")
 local augroup = vim.api.nvim_create_augroup("MdmathManager", { clear = true })
 local buffers = {}
+
+local BUFFER_MODE = {
+  INSERT = 1,
+  NORMAL = 2,
+}
 
 local function _get_parser(bufnr, lang)
   local parser = vim.treesitter.get_parser(bufnr, lang)
@@ -15,17 +21,6 @@ local function _get_parser(bufnr, lang)
     error("[MDMATH] Parser not found for " .. lang, 2)
   end
   return parser
-end
-
-function Buffer.get_line_range()
-  local first_line = vim.fn.line("w0") - 1
-  local last_line = vim.fn.line("w$")
-  return first_line, last_line
-end
-
-function Buffer.get_cursor()
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  return cursor[1] - 1, cursor[2]
 end
 
 function Buffer.enable_mdmath_for_buffer(bufnr)
@@ -46,8 +41,11 @@ end
 function Buffer.new(bufnr)
   local self = {}
   setmetatable(self, Buffer)
+  self.insert_display = buffer_strategies[config.insert_strategy]
+  self.normal_display = buffer_strategies[config.normal_strategy]
 
   self.bufnr = bufnr
+  self.mode = BUFFER_MODE.NORMAL
   self.equations = {}
   self.marks = {}
   self.parser = _get_parser(bufnr, "markdown")
@@ -63,22 +61,18 @@ function Buffer.new(bufnr)
                         start_row, start_col, start_offset,
                         old_end_row, old_end_col, old_offset,
                         new_end_row, new_end_col, new_offset)
-      self:_notify_bytes(_, _, _, start_row, start_col, start_offset,
+      self:_autocmd_update_bytes(_, _, _, start_row, start_col, start_offset,
         old_end_row, old_end_col, old_offset,
         new_end_row, new_end_col, new_offset)
     end,
-    on_lines = function() self:_reset_timer() end
   })
   -- create autocmds
-  vim.api.nvim_create_autocmd({ "VimLeave" }, {
+  vim.api.nvim_create_autocmd({ "VimLeave", "BufLeave" }, {
     buffer = self.bufnr,
     group = augroup,
-    callback = function() self:free() end
-  })
-  vim.api.nvim_create_autocmd({ "BufLeave" }, {
-    buffer = self.bufnr,
-    group = augroup,
-    callback = function() self:_free_equations() end
+    callback = function()
+      self:free()
+    end
   })
   vim.api.nvim_create_autocmd({ "VimResized" }, {
     callback = function()
@@ -86,11 +80,11 @@ function Buffer.new(bufnr)
         terminfo.refresh_terminal()
         self.processor:set_cell_sizes()
         self:_free_equations()
-        self:_reset_timer()
+        self:_loop()
       end)
     end
   })
-  vim.api.nvim_create_autocmd({ "WinScrolled", "BufEnter", "InsertLeave" }, {
+  vim.api.nvim_create_autocmd({ "WinScrolled", "BufEnter" }, {
     buffer = self.bufnr,
     group = augroup,
     callback = function()
@@ -101,17 +95,19 @@ function Buffer.new(bufnr)
     vim.api.nvim_create_autocmd({ "CursorMoved" }, {
       buffer = self.bufnr,
       group = augroup,
-      callback = function() self:_anticonceal() end
+      callback = function()
+        self:normal_display(self.marks)
+      end
     })
   end
-  if config.hide_on_insert then
-    vim.api.nvim_create_autocmd({ "ModeChanged" }, {
-      buffer = self.bufnr,
-      group = augroup,
-      callback = function() self:_hide_on_insert() end
-    })
-  end
-  self:_reset_timer()
+  vim.api.nvim_create_autocmd({ "ModeChanged" }, {
+    buffer = self.bufnr,
+    group = augroup,
+    callback = function()
+      self:_autocmd_update_mode()
+      self:_loop()
+    end
+  })
 
   return self
 end
@@ -123,6 +119,7 @@ function Buffer:free()
   self.active = false
   self:_free_equations()
   self.processor:free()
+  self.timer:stop()
   buffers[self.bufnr] = nil
 
   vim.api.nvim_clear_autocmds({
@@ -140,11 +137,7 @@ function Buffer:get_tty()
 end
 
 function Buffer:notify_processor(event)
-  if event.event_type == "image" then
-    self.equations[event.hash]:set_image_path(event.path)
-  elseif event.event_type == "error" then
-    self.equations[event.hash]:set_message(event.error)
-  end
+  self.equations[event.hash]:set_processor_result(event)
 end
 
 function Buffer:remove_mark(mark)
@@ -157,39 +150,14 @@ end
 
 function Buffer:_loop()
   self:_parse_line_range()
-  self:_redraw()
+  self:_draw()
 end
 
-function Buffer:_reset_timer()
-  self.timer:start(config.update_interval, 0, vim.schedule_wrap(function()
-    self:_loop()
-  end))
-end
-
-function Buffer:_anticonceal()
-  local row, col = Buffer.get_cursor()
-  local cursor_offset = Mark.compute_offset(self.bufnr, row, col)
-  for _, mark in pairs(self.marks) do
-    local mark_in_cursor = mark:contains_offset(cursor_offset)
-    if mark_in_cursor then
-      mark:hide()
-    else
-      mark:show()
-    end
-  end
-end
-
-function Buffer:_hide_on_insert()
-  local old_mode = vim.v.event.old_mode:sub(1, 1)
-  local mode = vim.v.event.new_mode:sub(1, 1)
-  if old_mode == mode then
-    return
-  end
-  if mode ~= "i" and mode ~= "R" then
-    return
-  end
-  for _, mark in pairs(self.marks) do
-    mark:hide(false)
+function Buffer:_draw()
+  if self.mode == BUFFER_MODE.NORMAL then
+    self:normal_display(self.marks)
+  elseif self.mode == BUFFER_MODE.INSERT then
+    self:insert_display(self.marks)
   end
 end
 
@@ -200,7 +168,7 @@ function Buffer:_free_equations()
 end
 
 function Buffer:_parse_line_range()
-  local first_row, last_row = Buffer.get_line_range()
+  local first_row, last_row = utils.window.get_line_range()
   self.parser:parse({ first_row, last_row })
   local inlines = self.parser:children()["markdown_inline"]
   if not inlines then
@@ -213,7 +181,7 @@ function Buffer:_parse_line_range()
     for _, node, _, _ in inline_query:iter_captures(tree:root(), 0, first_row, last_row) do
       local start_row, start_col, end_row, end_col = node:range()
       local text = vim.treesitter.get_node_text(node, 0)
-      local hash = Equation.hash_equation(text)
+      local hash = utils.equation.hash_equation(text)
       if not self.equations[hash] then
         local equation = Equation.new({
           buffer = self,
@@ -246,13 +214,7 @@ function Buffer:_parse_line_range()
   end
 end
 
-function Buffer:_redraw()
-  for _, mark in pairs(self.marks) do
-    mark:redraw()
-  end
-end
-
-function Buffer:_notify_bytes(_, _, _,
+function Buffer:_autocmd_update_bytes(_, _, _,
                               start_row, start_col, start_offset,
                               old_end_row, old_end_col, old_offset,
                               new_end_row, new_end_col, new_offset
@@ -277,6 +239,19 @@ function Buffer:_notify_bytes(_, _, _,
       self.marks[key]:free()
       self.marks[key] = nil
     end
+  end
+end
+
+function Buffer:_autocmd_update_mode()
+  local old_mode = vim.v.event.old_mode:sub(1, 1)
+  local mode = vim.v.event.new_mode:sub(1, 1)
+  if old_mode == mode then
+    return
+  end
+  if mode == "i" or mode == "R" then
+    self.mode = BUFFER_MODE.INSERT
+  elseif mode == "n" then
+    self.mode = BUFFER_MODE.NORMAL
   end
 end
 

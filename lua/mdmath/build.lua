@@ -1,4 +1,4 @@
-M = {}
+local M = {}
 
 local PLUGIN_DIR = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:h")
 local JS_DIR = PLUGIN_DIR .. "/mdmath-js"

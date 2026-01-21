@@ -1,20 +1,25 @@
-M = {}
+local M = {}
 
 M.default_opts = {
   -- Plugin filetypes
   filetypes = { "markdown" },
   -- Color of the equation, can be a highlight group or a hex color.
   foreground = "Normal",
-  -- Hide the images when the equation is under the cursor.
-  anticonceal = true,
-  -- Hide the images when in the Insert Mode.
-  hide_on_insert = true,
+  -- Display strategy
+  --   hide_all: hides all marks
+  --   show_all: show all marks
+  --   hide_in_cursor: hides marks under cursor
+  --   hide_in_line: hides all marks in line
+  -- Display strategy for normal mode
+  insert_strategy = "hide_all",
+  -- Display strategy for normal mode
+  normal_strategy = "hide_in_line",
+  -- Display strategy for individual equations
+  inline_strategy_show = "show_overlay",
   -- Center images for display equations
   center_display = true,
   -- Center images for inline equations
   center_inline = true,
-  -- Interval between updates (milliseconds).
-  update_interval = 400,
   -- Number of pixels to use as padding from above and below
   pixel_padding = 0,
   -- Pixels height ratio to use as baseline to align equations vertically

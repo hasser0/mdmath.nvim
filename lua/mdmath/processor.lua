@@ -1,4 +1,4 @@
-Processor = {}
+local Processor = {}
 Processor.__index = Processor
 
 local config = require("mdmath.config").opts
@@ -33,9 +33,7 @@ function Processor.new(buffer)
   end)
 
   self:set_cell_sizes()
-  self:_set_float_var("blratio", config.bottom_line_ratio)
-  self:_set_int_var("ppad", config.pixel_padding)
-
+  self:set_configs()
   return self
 end
 
@@ -49,8 +47,27 @@ end
 
 function Processor:set_cell_sizes()
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
-  self:_set_float_var("wpix", pixels_per_cell_w)
-  self:_set_float_var("hpix", pixels_per_cell_h)
+  self:_send_json({
+    type = "setpixel",
+    wpix = pixels_per_cell_w,
+    hpix = pixels_per_cell_h,
+    inline_method = "example",
+    display_method = "example",
+  })
+end
+
+function Processor:set_configs()
+  self:_send_json({
+    type = "config",
+    blratio = config.bottom_line_ratio,
+    ppad = config.pixel_padding,
+  })
+end
+
+function Processor:_send_json(value)
+  local b64_json = vim.base64.encode(vim.fn.json_encode(value))
+  local len = #b64_json
+  self.stdin:write( string.format("%d:%s", len, b64_json))
 end
 
 function Processor:request_image(req)
@@ -78,15 +95,6 @@ function Processor:_resend_data(data)
       })
     end
   end
-end
-
-
-function Processor:_set_float_var(var, value)
-  self.stdin:write(string.format("setfloat:%s:%.2f:", var, value))
-end
-
-function Processor:_set_int_var(var, value)
-  self.stdin:write(string.format("setint:%s:%d:", var, value))
 end
 
 return Processor
