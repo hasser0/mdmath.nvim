@@ -1,4 +1,4 @@
-M = {}
+local M = {}
 
 local default_opts = require("mdmath.constants").default_opts
 
@@ -10,7 +10,7 @@ local function is_hex_color(text)
 end
 
 local function hl_as_hex(color)
-  if is_hex_color(color) ~= nil then
+  if is_hex_color(color) then
     return color:lower()
   end
   local foreground = vim.api.nvim_get_hl(0, { name = color, create = false, link = false }).fg
@@ -28,28 +28,39 @@ function M.set_options(opts)
 
   assert(type(M.opts.filetypes) == "table", "[MDMATH] 'filetypes' config expected list")
   assert(type(M.opts.foreground) == "string", "[MDMATH] 'foreground' config expected string")
-  assert(type(M.opts.anticonceal) == "boolean", "[MDMATH] 'anticonceal' config expected boolean")
-  assert(type(M.opts.hide_on_insert) == "boolean", "[MDMATH] 'hide_on_insert' config expected boolean")
+  assert(type(M.opts.insert_strategy) == "string", "[MDMATH] 'insert_strategy' config expected string")
+  assert(type(M.opts.normal_strategy) == "string", "[MDMATH] 'normal_strategy' config expected string")
+  assert(type(M.opts.inline_strategy) == "string", "[MDMATH] 'inline_strategy' config expected string")
   assert(type(M.opts.center_display) == "boolean", "[MDMATH] 'center_display' config expected boolean")
   assert(type(M.opts.center_inline) == "boolean", "[MDMATH] 'center_inline' config expected boolean")
-  assert(type(M.opts.update_interval) == "number", "[MDMATH] 'update_interval' config expected number")
   assert(type(M.opts.pixel_padding) == "number", "[MDMATH] 'pixel_padding' config expected number")
   assert(type(M.opts.bottom_line_ratio) == "number", "[MDMATH] 'bottom_line_ratio' config expected number")
   assert(type(M.opts.retry_mark_draw) == "number", "[MDMATH] 'retry_mark_draw' config expected number")
+  assert(type(M.opts.update_interval) == "number", "[MDMATH] 'update_interval' config expected number")
+  assert(type(M.opts.display_zoom) == "number", "[MDMATH] 'display_zoom' config expected number")
 
   assert(#M.opts.filetypes > 0, "[MDMATH] 'filetypes' config expected at least one item")
   assert(is_hex_color(M.opts.foreground), "[MDMATH] 'foreground' config expected valid hl or hex color")
-  assert(M.opts.update_interval >= 100, "[MDMATH] 'update_interval' config expected number greater equal than 100")
   assert(M.opts.pixel_padding >= 0, "[MDMATH] 'pixel_padding' config expected zero or positive number")
-  assert(
-    M.opts.pixel_padding == math.floor(M.opts.pixel_padding),
-    "[MDMATH] 'pixel_padding' config expected integer number"
-  )
-  assert(
-    0.00 <= M.opts.bottom_line_ratio and M.opts.bottom_line_ratio <= 0.2,
-    "[MDMATH] 'bottom_line_ratio' config expected in [0.0, 0.2] interval"
-  )
+  local pixel_padding_is_integer = M.opts.pixel_padding == math.floor(M.opts.pixel_padding)
+  assert(pixel_padding_is_integer, "[MDMATH] 'pixel_padding' config expected integer number")
+  local bottom_line_in_range = 0.00 <= M.opts.bottom_line_ratio and M.opts.bottom_line_ratio <= 0.2
+  assert(bottom_line_in_range, "[MDMATH] 'bottom_line_ratio' config expected in [0.0, 0.2] interval")
   assert(M.opts.retry_mark_draw > 0, "[MDMATH] 'retry_mark_draw' config expected positive number")
+  assert(M.opts.display_zoom > 0.5, "[MDMATH] 'display_zoom' config expected number greater than 0.5")
+  local mode_strategies = {
+    hide_all = true,
+    show_all = true,
+    hide_in_cursor = true,
+    hide_in_line = true,
+  }
+  assert(mode_strategies[M.opts.insert_strategy], "[MDMATH] 'insert_strategy' unexpected value")
+  assert(mode_strategies[M.opts.normal_strategy], "[MDMATH] 'normal_strategy' unexpected value")
+  local equation_strategies = {
+    AdjustEquationToText = true,
+    AdjustTextToEquation = true,
+  }
+  assert(equation_strategies[M.opts.inline_strategy], "[MDMATH] 'inline_strategy' unexpected value")
 
   M.is_loaded = true
 end

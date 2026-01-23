@@ -1,19 +1,15 @@
 const callbacks = [];
 
-function run() {
-    callbacks.forEach(callback => callback());
-}
-
-process.on("exit", (code) => {
-    run();
+process.on("exit", (_) => {
+  callbacks.forEach(callback => callback());
 });
 
 ["SIGINT", "SIGTERM", "SIGHUP"].forEach((signal) => {
-    process.on(signal, (_, code) => {
-        process.exit(128 + code);
-    });
+  process.on(signal, (_, code) => {
+    process.exit(128 + code);
+  });
 });
 
 export function addCallbackOnExit(callback) {
-    callbacks.push(callback);
+  callbacks.push(callback);
 }

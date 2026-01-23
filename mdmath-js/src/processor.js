@@ -1,143 +1,236 @@
-import fs from "fs";
+import { rmdirSync, unlinkSync, mkdirSync } from "fs";
 import mathjax from "mathjax";
-import reader from "./reader.js";
-import { sendNotification }  from "./debug.js";
-import { pngFitTo, rsvgConvert } from "./magick.js";
+import { listen } from "./reader.js";
+import { magick, rsvgConvert } from "./binaries.js";
 import { randomBytes } from "node:crypto";
 import { addCallbackOnExit } from "./onexit.js";
 
 const DIRECTORY_SUFFIX = randomBytes(6).toString("hex");
 const IMG_DIR = `/tmp/nvim-mdmath-${DIRECTORY_SUFFIX}`;
 const equations = [];
-const svgCache = {};
-let Mathjax = undefined;
-let cellHeightInPixels = null
-let cellWidthInPixels = null
-let bottomLineRatio = null
-let pixelPadding = null
-let zoomPixelsRatio = 16
-
+let mathjaxProcessor = null;
+// pixels
+const zoomPixelsRatio = 16;
+let displayZoom = 1;
+let cellHeightInPixels = 0;
+let cellWidthInPixels = 0;
+// config
+const methodsMap = {
+  AdjustEquationToText: adjustEquationToText,
+  AdjustTextToEquation: adjustTextToEquation,
+};
+let bottomLineRatio = 0;
+let pixelPadding = 0;
+let methods = { display: null, inline: null, };
+let centerInline = true;
+let centerDisplay = true;
+let foreground = null;
 
 class MathError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = "MathError";
-    }
+  constructor(message) {
+    super(message);
+    this.name = "MathError";
+  }
 }
 
-function mkdirSync(path) {
-    try {
-        fs.mkdirSync(path, { recursive: true });
-    } catch (error) {
-        throw error;
-    }
-}
-
-function write(msg) {
-    process.stdout.write(msg);
+function send_json(resp) {
+  const jsonStr = btoa(JSON.stringify(resp));
+  process.stdout.write(`${jsonStr.length}:${jsonStr}:`);
 }
 
 async function equationToSVG(equation, opts) {
-    if (equation in svgCache) {
-        return svgCache[equation];
+  try {
+    const svg = await mathjaxProcessor.tex2svgPromise(equation, opts);
+    return { svg: mathjaxProcessor.startup.adaptor.innerHTML(svg) }
+  } catch (error) {
+    if (error instanceof MathError) {
+      return { error: error.message }
     }
-
-    try {
-        const svg = await Mathjax.tex2svgPromise(equation, opts);
-        return svgCache[equation] = { svg: Mathjax.startup.adaptor.innerHTML(svg) }
-    } catch (error) {
-        if (error instanceof MathError) {
-            return svgCache[equation] = { error: error.message }
-        }
-        throw error;
-    }
+    throw error;
+  }
 }
 
-// hashLength, hash, cellWidth, cellHeight,
-// width, height, flags, color, equation
+// isDisplay
+// isCenter
+// numberPixelsWidth
+// numberPixelsHeight
+// filename
+// hash
+// equation
+// numberCellsWidth
+// numberCellsHeight
+// equationType
+async function adjustEquationToText(svg, opts) {
+  // zoom up to text width
+  const currentDisplay = opts.isDisplay ? displayZoom : 1;
+  let png = await rsvgConvert(svg, [
+    "--zoom", `${currentDisplay * cellHeightInPixels / zoomPixelsRatio}`,
+    "--width", `${opts.numberPixelsWidth}px`,
+    "--height", `${opts.numberPixelsHeight}px`,
+    "--format", "png",
+  ]);
+
+  const ceilPNGImage = Math.ceil(png.imageHeight / cellHeightInPixels) * cellHeightInPixels;
+  const fullHeightText = cellHeightInPixels * opts.numberCellsHeight;
+  const ceilImageHeight = opts.isDisplay ? fullHeightText : ceilPNGImage;
+  const bottomLineHeight = bottomLineRatio * cellHeightInPixels;
+  const args = ["png:-", "-trim", "+repage", "-background", "none"];
+  if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
+    args.push(
+      "-gravity", "center",
+      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`,
+    );
+  } else {
+    args.push(
+      "-gravity", "south",
+      "-splice", `0x${bottomLineHeight}`,
+      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`,
+    );
+  }
+  args.push(`png:${opts.filename}`);
+  await magick(png.data, args);
+  return new Promise((resolve, _) => {
+    resolve({
+      imageHeight: ceilImageHeight,
+      imageWidth: opts.numberPixelsWidth,
+    })
+  });
+}
+
+async function adjustTextToEquation(svg, opts) {
+  // zoom but keep under size limited to two cells in height
+  const currentDisplay = opts.isDisplay ? displayZoom : 1;
+  const argSVG = [
+    "--zoom", `${currentDisplay * cellHeightInPixels / zoomPixelsRatio}`,
+  ];
+  if (!opts.isDisplay) {
+    argSVG.push("--height", `${cellHeightInPixels}px`);
+  }
+  argSVG.push("--format", "png");
+  let png = await rsvgConvert(svg, argSVG);
+
+
+
+  const ceilPNGImage = Math.ceil(png.imageHeight / cellHeightInPixels) * cellHeightInPixels;
+  const fullHeightText = cellHeightInPixels * opts.numberCellsHeight;
+  const ceilImageHeight = opts.isDisplay ? fullHeightText : ceilPNGImage;
+  const ceilImageWidth = Math.ceil(png.imageWidth / cellWidthInPixels) * cellWidthInPixels;
+  const bottomLineHeight = bottomLineRatio * cellHeightInPixels;
+  const args = ["png:-", "-trim", "+repage", "-background", "none"];
+  if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
+    args.push(
+      "-gravity", "center",
+      "-extent", `${ceilImageWidth}x${ceilImageHeight}`,
+    );
+  } else {
+    args.push(
+      "-gravity", "south",
+      "-splice", `0x${bottomLineHeight}`,
+      "-extent", `${ceilImageWidth}x${ceilImageHeight}`,
+    );
+  }
+  args.push(`png:${opts.filename}`);
+  await magick(png.data, args);
+  return new Promise((resolve, _) => {
+    resolve({
+      imageHeight: ceilImageHeight,
+      imageWidth: ceilImageWidth,
+    })
+  });
+}
+
 async function processEquation(req) {
-    const isCenter = !!(req.flags & 2);
-    const isInline = !!(req.flags & 4);
-    const terminalWidth = req.width * cellWidthInPixels;
-    const terminalHeight = req.height * cellHeightInPixels;
+  req.isDisplay = (req.equationType === "display");
+  const svg2png = methods[req.equationType];
+  req.isCenter = (req.isDisplay && centerDisplay) || (!req.isDisplay && centerInline);
+  req.numberPixelsWidth = req.numberCellsWidth * cellWidthInPixels;
+  req.numberPixelsHeight = req.numberCellsHeight * cellHeightInPixels;
+  req.filename = `${IMG_DIR}/${req.hash}.png`;
 
-    if (!req.equation || req.equation.trim().length === 0) {
-        write(`error:${req.hash}:Empty equation:`)
-        return
-    }
-
-    let result = await equationToSVG(req.equation, {
-        display: !isInline,
+  if (!req.equation || req.equation.trim().length === 0) {
+    send_json({
+      type: "error",
+      hash: req.hash,
+      error: "Empty equation",
     });
-    if (result.error) {
-        write(`error:${req.hash}:${result.error}:`)
-       return
-    }
+    return
+  }
 
-    let svg = result.svg.replace(/currentColor/g, req.color).replace(/style="[^"]+"/, "")
-    let basePNG = await rsvgConvert(svg, {
-        zoom:  cellHeightInPixels / zoomPixelsRatio,
+  let result = await equationToSVG(req.equation, { display: req.isDisplay, });
+  if (result.error) {
+    send_json({
+      type: "error",
+      hash: req.hash,
+      error: result.error,
     });
-    const filename = `${IMG_DIR}/${req.hash}.png`;
-    equations.push(filename);
+    return
+  }
+  let svg = result.svg.replace(/currentColor/g, foreground).replace(/style="[^"]+"/, "")
+  equations.push(req.filename);
+  let png = await svg2png(svg, req);
 
-    await pngFitTo(basePNG.data, filename, {
-        width: terminalWidth,
-        height: terminalHeight,
-        center: isCenter,
-        bottomLineHeight: Math.floor(cellHeightInPixels * bottomLineRatio),
-        pixelPadding: pixelPadding,
-        imageHeight: basePNG.height,
-        imageWidth: basePNG.width,
-    });
-    write(`image:${req.hash}:${filename}:`);
+  send_json({
+    type: "image",
+    hash: req.hash,
+    filename: req.filename,
+    imageHeight: png.imageHeight,
+    imageWidth: png.imageWidth,
+  });
 }
 
-function processAll(req) {
-    if (req.type === "request") {
-        processEquation(req).catch((err) => {
-            write(`error:${req.hash}:${err.message}:`)
-        });
-    } else if (req.type === "setfloat" && req.variable === "wpix") {
-        cellWidthInPixels = req.value;
-    } else if (req.type === "setfloat" && req.variable === "hpix") {
-        cellHeightInPixels = req.value;
-    } else if (req.type === "setfloat" && req.variable === "blratio") {
-        bottomLineRatio = req.value;
-    } else if (req.type === "setint" && req.variable === "ppad") {
-        pixelPadding = req.value;
-    }
+function processMessage(req) {
+  if (req.type == "pixel") {
+    cellWidthInPixels = req.cellWidthInPixels;
+    cellHeightInPixels = req.cellHeightInPixels;
+  } else if (req.type == "config") {
+    bottomLineRatio = req.bottomLineRatio;
+    pixelPadding = req.pixelPadding;
+    displayZoom = req.displayZoom;
+    methods["inline"] = methodsMap[req.inlineMethod];
+    methods["display"] = methodsMap[req.displayMethod];
+    centerInline = req.centerInline;
+    centerDisplay = req.centerDisplay;
+    foreground = req.foreground;
+  } else if (req.type == "image") {
+    processEquation(req).catch((err) => {
+      send_json({
+        type: "error",
+        hash: req.hash,
+        error: err.message,
+      });
+    });
+  }
 }
 
 function main() {
-    mkdirSync(IMG_DIR);
-    addCallbackOnExit(() => {
-        equations.forEach((filename) => {
-            try {
-                fs.unlinkSync(filename);
-            } catch (error) {
-            }
-        });
+  mkdirSync(IMG_DIR, { recursive: true });
 
-        try {
-            fs.rmdirSync(IMG_DIR);
-        } catch (error) { }
+  addCallbackOnExit(() => {
+    equations.forEach((filename) => {
+      try {
+        unlinkSync(filename);
+      } catch (error) { }
     });
 
-    mathjax.init({
-        loader: { load: ["input/tex", "output/svg"] },
-        tex: {
-            formatError: (_, error) => {
-                throw new MathError(error.message);
-            }
-        }
-    }).then((_mathjax) => {
-        Mathjax = _mathjax;
-        reader.listen(processAll);
-    }).catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+    try {
+      rmdirSync(IMG_DIR);
+    } catch (error) { }
+  });
+
+  mathjax.init({
+    loader: { load: ["input/tex", "output/svg"] },
+    tex: {
+      formatError: (_, error) => {
+        throw new MathError(error.message);
+      }
+    }
+  }).then((_mathjax) => {
+    mathjaxProcessor = _mathjax;
+    listen(processMessage);
+  }).catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
 }
 
 main();

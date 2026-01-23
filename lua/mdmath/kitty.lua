@@ -1,4 +1,4 @@
-M = {}
+local M = {}
 
 ---@param opts { tty: any, png_path: string, image_id: number }
 function M.transfer_png_file(opts)
