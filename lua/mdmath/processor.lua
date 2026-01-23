@@ -59,12 +59,11 @@ function Processor:set_configs()
   self:_send_json({
     type = "config",
     bottomLineRatio = config.bottom_line_ratio,
-    pixelPadding = config.pixel_padding,
     displayZoom = config.display_zoom,
     centerInline = config.center_inline,
     centerDisplay = config.center_display,
     foreground = config.foreground,
-    displayMethod = "AdjustEquationToText",
+    displayMethod = config.display_strategy,
     inlineMethod = config.inline_strategy,
   })
 end

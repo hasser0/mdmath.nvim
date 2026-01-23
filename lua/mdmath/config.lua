@@ -33,7 +33,6 @@ function M.set_options(opts)
   assert(type(M.opts.inline_strategy) == "string", "[MDMATH] 'inline_strategy' config expected string")
   assert(type(M.opts.center_display) == "boolean", "[MDMATH] 'center_display' config expected boolean")
   assert(type(M.opts.center_inline) == "boolean", "[MDMATH] 'center_inline' config expected boolean")
-  assert(type(M.opts.pixel_padding) == "number", "[MDMATH] 'pixel_padding' config expected number")
   assert(type(M.opts.bottom_line_ratio) == "number", "[MDMATH] 'bottom_line_ratio' config expected number")
   assert(type(M.opts.retry_mark_draw) == "number", "[MDMATH] 'retry_mark_draw' config expected number")
   assert(type(M.opts.update_interval) == "number", "[MDMATH] 'update_interval' config expected number")
@@ -41,11 +40,8 @@ function M.set_options(opts)
 
   assert(#M.opts.filetypes > 0, "[MDMATH] 'filetypes' config expected at least one item")
   assert(is_hex_color(M.opts.foreground), "[MDMATH] 'foreground' config expected valid hl or hex color")
-  assert(M.opts.pixel_padding >= 0, "[MDMATH] 'pixel_padding' config expected zero or positive number")
-  local pixel_padding_is_integer = M.opts.pixel_padding == math.floor(M.opts.pixel_padding)
-  assert(pixel_padding_is_integer, "[MDMATH] 'pixel_padding' config expected integer number")
-  local bottom_line_in_range = 0.00 <= M.opts.bottom_line_ratio and M.opts.bottom_line_ratio <= 0.2
-  assert(bottom_line_in_range, "[MDMATH] 'bottom_line_ratio' config expected in [0.0, 0.2] interval")
+  local bottom_line_in_range = 0.00 <= M.opts.bottom_line_ratio and M.opts.bottom_line_ratio <= 0.3
+  assert(bottom_line_in_range, "[MDMATH] 'bottom_line_ratio' config expected in [0.0, 0.3] interval")
   assert(M.opts.retry_mark_draw > 0, "[MDMATH] 'retry_mark_draw' config expected positive number")
   assert(M.opts.display_zoom > 0.5, "[MDMATH] 'display_zoom' config expected number greater than 0.5")
   local mode_strategies = {

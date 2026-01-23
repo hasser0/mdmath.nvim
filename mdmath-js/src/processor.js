@@ -20,7 +20,6 @@ const methodsMap = {
   AdjustTextToEquation: adjustTextToEquation,
 };
 let bottomLineRatio = 0;
-let pixelPadding = 0;
 let methods = { display: null, inline: null, };
 let centerInline = true;
 let centerDisplay = true;
@@ -184,7 +183,6 @@ function processMessage(req) {
     cellHeightInPixels = req.cellHeightInPixels;
   } else if (req.type == "config") {
     bottomLineRatio = req.bottomLineRatio;
-    pixelPadding = req.pixelPadding;
     displayZoom = req.displayZoom;
     methods["inline"] = methodsMap[req.inlineMethod];
     methods["display"] = methodsMap[req.displayMethod];

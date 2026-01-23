@@ -213,7 +213,7 @@ function Equation:_get_mark_strategy()
       self.equation_strategy = equation_strategies[config.inline_strategy]
       return self.equation_strategy
     elseif self.equation_mode == EQUATION_MODE.DISPLAY then
-      self.equation_strategy = equation_strategies["AdjustEquationToText"]
+      self.equation_strategy = equation_strategies[config.display_strategy]
       return self.equation_strategy
     end
   end
