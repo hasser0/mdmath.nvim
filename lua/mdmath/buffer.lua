@@ -16,7 +16,11 @@ local BUFFER_MODE = {
 }
 
 local function _get_parser(bufnr, lang)
-  local parser = vim.treesitter.get_parser(bufnr, lang)
+  local language_map = {
+    markdown = "markdown",
+    tex = "latex",
+  }
+  local parser = vim.treesitter.get_parser(bufnr, language_map[lang])
   if not parser then
     error("[MDMATH] Parser not found for " .. lang, 2)
   end
@@ -35,11 +39,12 @@ local function _debounce(fn, ms)
 end
 
 function Buffer.enable_mdmath_for_buffer(bufnr)
+  local filetype = vim.bo.filetype
   bufnr = bufnr ~= 0 and bufnr or vim.api.nvim_get_current_buf()
   if buffers[bufnr] then
     return
   end
-  buffers[bufnr] = Buffer.new(bufnr)
+  buffers[bufnr] = Buffer.new(bufnr, filetype)
 end
 
 function Buffer.disable_mdmath_for_buffer(bufnr)
@@ -54,22 +59,25 @@ function Buffer.clear_mdmath_for_buffer(bufnr)
   buffers[bufnr]:free_equations()
 end
 
-function Buffer.new(bufnr)
+function Buffer.new(bufnr, filetype)
   local self = {}
+
   setmetatable(self, Buffer)
   self.insert_display = buffer_strategies[config.insert_strategy]
   self.normal_display = buffer_strategies[config.normal_strategy]
 
   self.bufnr = bufnr
+  self.filetype = filetype
   self.mode = BUFFER_MODE.NORMAL
   self.equations = {}
   self.marks = {}
-  self.parser = _get_parser(bufnr, "markdown")
+  self.parser = _get_parser(bufnr, filetype)
   self.tty = vim.uv.new_tty(1, false)
   self.active = true
 
   self.processor = Processor.new(self)
 
+  -- TODO remove
   -- attach to buf
   -- vim.api.nvim_buf_attach(self.bufnr, false, {
   --   on_bytes = function(_, _, _,
@@ -189,15 +197,27 @@ end
 function Buffer:_parse_line_range()
   local first_row, last_row = utils.window.get_line_range()
   self.parser:parse({ first_row, last_row })
-  local inlines = self.parser:children()["markdown_inline"]
-  if not inlines then
+
+  local parser = nil
+  local query = nil
+  if self.filetype == "markdown" then
+    parser = self.parser:children()["markdown_inline"]
+    query = vim.treesitter.query.parse("markdown_inline", "(latex_block) @math")
+  elseif self.filetype == "tex" then
+    parser = self.parser
+    query = vim.treesitter.query.parse("latex", [[
+      [
+        (inline_formula)
+        (displayed_equation)
+      ] @math
+    ]])
+  else
     return
   end
 
-  local inline_query = vim.treesitter.query.parse("markdown_inline", "(latex_block) @block")
   local new_locations = {}
-  inlines:for_each_tree(function(tree)
-    for _, node, _, _ in inline_query:iter_captures(tree:root(), 0, first_row, last_row) do
+  parser:for_each_tree(function(tree)
+    for _, node, _, _ in query:iter_captures(tree:root(), 0, first_row, last_row) do
       local start_row, start_col, end_row, end_col = node:range()
       local text = vim.treesitter.get_node_text(node, 0)
       local hash = utils.equation.hash_equation(text)

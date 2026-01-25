@@ -1,23 +1,26 @@
 local M = {}
 
 M.default_opts = {
-    -- Plugin filetypes
+  -- Plugin filetypes
+  --   + markdown
+  --   + tex
   filetypes = { "markdown" },
   -- Color of the equation, can be a highlight group or a hex color.
   foreground = "Normal",
   -- Display strategy per mode
-  --   hide_all: hides all marks
-  --   show_all: show all marks
-  --   hide_in_cursor: hides marks under cursor. Not recommended with
+  --   + hide_all: hides all marks
+  --   + show_all: show all marks
+  --   + hide_in_cursor: hides marks under cursor. Not recommended with
   --                   AdjustTextToEquation for inline-equations, use
   --                   hide_in_line instead for that
-  --   hide_in_line: hides all marks in current line.
+  --   + hide_in_line: hides all marks in current line.
   insert_strategy = "hide_all",
   normal_strategy = "hide_in_line",
   -- Display strategy for individual equations.
   -- For inline-equations, height is limited to cell height.
-  --   AdjustTextToEquation: Shrinks or extend text as needed to fit  image size
-  --   AdjustEquationToText: Image size is limited by text area
+  --   + AdjustTextToEquation: Shrinks or extend text as needed to fit  image size
+  --                         make sure vim.opt.conceallevel >= 1 for each filetype
+  --   + AdjustEquationToText: Image size is limited by text area
   inline_strategy = "AdjustEquationToText",
   display_strategy = "AdjustTextToEquation",
   -- Center images for equation types
@@ -25,8 +28,6 @@ M.default_opts = {
   center_inline = true,
   -- Number of pixels to use as padding from above and below
   -- lower level for equations
-  --
-  --
   -----------------------------------------------------------------------
   ------------------.______--------------------------_-------------------
   --                | ____|_  ____ _ _ __ ___  _ __ | | ___
