@@ -43,16 +43,16 @@ end
 
 function AdjustEquationToText.create_extmarks(mark, equation, buffer)
   local start = mark:get_start()
-  local m_dim = mark:get_dimensions()
-  local e_dim = equation:get_dimensions()
+  local mark_dim = mark:get_dimensions()
+  local image_dim = equation:get_image_dimensions()
   local nvirt_lines = 0
   local normal_lines = 1
-  if e_dim.ncells_h > m_dim.ncells_h then
-    nvirt_lines = e_dim.ncells_h - m_dim.ncells_h
+  if image_dim.cell_h > mark_dim.cell_h then
+    nvirt_lines = image_dim.cell_h - mark_dim.cell_h
   end
   vim.schedule(function()
-    for i = 1, e_dim.ncells_h do
-      local text = unicode_range(i, m_dim.ncells_w)
+    for i = 1, image_dim.cell_h do
+      local text = unicode_range(i, mark_dim.cell_w)
       local extmark_row = 0
       local extmark_col = 0
       local extmark_opts = {}
@@ -119,16 +119,17 @@ end
 function AdjustTextToEquation.create_extmarks(mark, equation, buffer)
   local start = mark:get_start()
   local last = mark:get_end()
-  local m_dim = mark:get_dimensions()
-  local e_dim = equation:get_dimensions()
+  local mark_dim = mark:get_dimensions()
+  local image_dim = equation:get_image_dimensions()
+  local lines_w = equation:get_lines_width()
   local nvirt_lines = 0
   local normal_lines = 1
-  if e_dim.ncells_h > m_dim.ncells_h then
-    nvirt_lines = e_dim.ncells_h - m_dim.ncells_h
+  if image_dim.cell_h > mark_dim.cell_h then
+    nvirt_lines = image_dim.cell_h - mark_dim.cell_h
   end
   vim.schedule(function()
-    for i = 1, e_dim.ncells_h do
-      local text = unicode_range(i, e_dim.ncells_w)
+    for i = 1, image_dim.cell_h do
+      local text = unicode_range(i, image_dim.cell_w)
       local extmark_row = 0
       local extmark_col = 0
       local extmark_opts = {}
@@ -145,7 +146,7 @@ function AdjustTextToEquation.create_extmarks(mark, equation, buffer)
         extmark_opts = {
           virt_text = {{ text, mark:get_color_name() }},
           virt_text_pos = "inline",
-          end_col = last.col,
+          end_col = lines_w[normal_lines],
           conceal = "",
         }
         extmark_row = start.row - 1 + normal_lines

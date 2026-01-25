@@ -34,17 +34,15 @@ function Equation.new(opts)
   self.buffer = opts.buffer
   self.hash = opts.hash
   self.text = opts.text
-  self.equation_strategy = nil
-
   self.equation = opts.text:gsub("^%$*(.-)%$*$", "%1"):gsub("[\n\r]", "")
-  self:_set_equation_mode()
-  self.equation_type = nil
+
   self.is_displayable = false
-  self.image_filename = nil
   self.marks = {}
-  self.mark_strategy = nil
-  self.show_function = nil
-  self.hide_equation = nil
+  self.equation_strategy = nil
+  self.equation_type = nil
+  self.image_filename = nil
+
+  self:_set_equation_mode()
 
   local lines = utils.equation.split_text_in_lines(opts.text)
   local lines_width = {}
@@ -133,14 +131,22 @@ function Equation:get_message()
   return self.message
 end
 
-function Equation:get_dimensions()
+function Equation:get_image_dimensions()
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
   return {
-    npixel_w = self.image_width,
-    npixel_h = self.image_height,
-    ncells_w = math.ceil(self.image_width / pixels_per_cell_w),
-    ncells_h = math.ceil(self.image_height / pixels_per_cell_h),
+    pixel_w = self.image_width,
+    pixel_h = self.image_height,
+    cell_w = math.ceil(self.image_width / pixels_per_cell_w),
+    cell_h = math.ceil(self.image_height / pixels_per_cell_h),
   }
+end
+
+function Equation:get_lines_width()
+  local lines_w = {}
+  for line in self.text:gmatch("[^\r\n]+") do
+    table.insert(lines_w, #line)
+  end
+  return lines_w
 end
 
 function Equation:set_processor_result(event)
