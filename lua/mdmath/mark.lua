@@ -151,8 +151,8 @@ end
 
 function Mark:get_dimensions()
   return {
-    ncells_h = self.ncells_h,
-    ncells_w = self.ncells_w,
+    cell_h = self.ncells_h,
+    cell_w = self.ncells_w,
   }
 end
 
