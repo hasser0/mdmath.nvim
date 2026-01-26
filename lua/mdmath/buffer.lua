@@ -201,7 +201,7 @@ function Buffer:_parse_line_range()
   local parser = nil
   local query = nil
   if self.filetype == "markdown" then
-    parser = self.parser:children()["markdown_inline"]
+    parser = self.parser
     query = vim.treesitter.query.parse("markdown_inline", "(latex_block) @math")
   elseif self.filetype == "tex" then
     parser = self.parser
@@ -214,6 +214,7 @@ function Buffer:_parse_line_range()
   else
     return
   end
+  print(parser)
 
   local new_locations = {}
   parser:for_each_tree(function(tree)
