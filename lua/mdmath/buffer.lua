@@ -214,7 +214,6 @@ function Buffer:_parse_line_range()
   else
     return
   end
-  print(parser)
 
   local new_locations = {}
   parser:for_each_tree(function(tree)
