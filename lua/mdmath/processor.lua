@@ -32,7 +32,7 @@ function Processor.new(buffer)
     print(data)
   end)
 
-  self:set_cell_sizes()
+  self:set_terminal_sizes()
   self:set_configs()
   return self
 end
@@ -45,12 +45,15 @@ function Processor:free()
   self.handle = nil
 end
 
-function Processor:set_cell_sizes()
+function Processor:set_terminal_sizes()
+  local win_id = vim.api.nvim_get_current_win()
+  local win_info = vim.fn.getwininfo(win_id)[1]
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
   self:_send_json({
     type = "pixel",
     cellWidthInPixels = pixels_per_cell_w,
     cellHeightInPixels = pixels_per_cell_h,
+    winWidthInCells = win_info.width - win_info.textoff,
   })
 end
 
@@ -60,7 +63,6 @@ function Processor:set_configs()
     type = "config",
     bottomLineRatio = config.bottom_line_ratio,
     displayZoom = config.display_zoom,
-    centerInline = config.center_inline,
     centerDisplay = config.center_display,
     foreground = config.foreground,
     displayMethod = config.display_strategy,

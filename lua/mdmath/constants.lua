@@ -23,9 +23,8 @@ M.default_opts = {
   --   + AdjustEquationToText: Image size is limited by text area
   inline_strategy = "AdjustEquationToText",
   display_strategy = "AdjustTextToEquation",
-  -- Center images for equation types
+  -- Center display equations the full window width.
   center_display = true,
-  center_inline = true,
   -- Number of pixels to use as padding from above and below
   -- lower level for equations
   -----------------------------------------------------------------------
