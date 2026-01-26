@@ -101,7 +101,7 @@ function Buffer.new(bufnr, filetype)
   vim.api.nvim_create_autocmd({ "VimResized" }, {
     callback = _debounce(function(args)
       terminfo.refresh_terminal()
-      self.processor:set_cell_sizes()
+      self.processor:set_terminal_sizes()
       self:free_equations()
       self:_loop()
     end, config.update_interval)

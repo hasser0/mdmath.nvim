@@ -14,6 +14,7 @@ const zoomPixelsRatio = 16;
 let displayZoom = 1;
 let cellHeightInPixels = 0;
 let cellWidthInPixels = 0;
+let winWidthInCells = 0;
 // config
 const methodsMap = {
   AdjustEquationToText: adjustEquationToText,
@@ -21,7 +22,6 @@ const methodsMap = {
 };
 let bottomLineRatio = 0;
 let methods = { display: null, inline: null, };
-let centerInline = true;
 let centerDisplay = true;
 let foreground = null;
 
@@ -50,7 +50,6 @@ async function equationToSVG(equation, opts) {
 }
 
 // isDisplay
-// isCenter
 // numberPixelsWidth
 // numberPixelsHeight
 // filename
@@ -113,7 +112,7 @@ async function adjustTextToEquation(svg, opts) {
   const ceilPNGImage = Math.ceil(png.imageHeight / cellHeightInPixels) * cellHeightInPixels;
   const fullHeightText = cellHeightInPixels * opts.numberCellsHeight;
   const ceilImageHeight = opts.isDisplay ? fullHeightText : ceilPNGImage;
-  const ceilImageWidth = Math.ceil(png.imageWidth / cellWidthInPixels) * cellWidthInPixels;
+  const ceilImageWidth = opts.isDisplay && centerDisplay ? winWidthInCells * cellWidthInPixels : Math.ceil(png.imageWidth / cellWidthInPixels) * cellWidthInPixels;
   const bottomLineHeight = bottomLineRatio * cellHeightInPixels;
   const args = ["png:-", "-trim", "+repage", "-background", "none"];
   if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
@@ -141,7 +140,6 @@ async function adjustTextToEquation(svg, opts) {
 async function processEquation(req) {
   req.isDisplay = (req.equationType === "display");
   const svg2png = methods[req.equationType];
-  req.isCenter = (req.isDisplay && centerDisplay) || (!req.isDisplay && centerInline);
   req.numberPixelsWidth = req.numberCellsWidth * cellWidthInPixels;
   req.numberPixelsHeight = req.numberCellsHeight * cellHeightInPixels;
   req.filename = `${IMG_DIR}/${req.hash}.png`;
@@ -181,12 +179,12 @@ function processMessage(req) {
   if (req.type == "pixel") {
     cellWidthInPixels = req.cellWidthInPixels;
     cellHeightInPixels = req.cellHeightInPixels;
+    winWidthInCells = req.winWidthInCells;
   } else if (req.type == "config") {
     bottomLineRatio = req.bottomLineRatio;
     displayZoom = req.displayZoom;
     methods["inline"] = methodsMap[req.inlineMethod];
     methods["display"] = methodsMap[req.displayMethod];
-    centerInline = req.centerInline;
     centerDisplay = req.centerDisplay;
     foreground = req.foreground;
   } else if (req.type == "image") {
