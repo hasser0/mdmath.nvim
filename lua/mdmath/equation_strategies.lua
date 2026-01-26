@@ -146,7 +146,7 @@ function AdjustTextToEquation.create_extmarks(mark, equation, buffer)
         extmark_opts = {
           virt_text = {{ text, mark:get_color_name() }},
           virt_text_pos = "inline",
-          end_col = lines_w[normal_lines],
+          end_col = start.col + lines_w[normal_lines],
           conceal = "",
         }
         extmark_row = start.row - 1 + normal_lines
