@@ -91,7 +91,7 @@ function Buffer.new(bufnr, filetype)
   -- })
 
   -- create autocmds
-  vim.api.nvim_create_autocmd({ "VimLeave", "BufLeave" }, {
+  vim.api.nvim_create_autocmd({ "VimLeave", "BufDelete" }, {
     buffer = self.bufnr,
     group = augroup,
     callback = function(args)
