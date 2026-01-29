@@ -10,7 +10,7 @@ local function _get_id()
 end
 
 ---@param opts {
----buffer: any,
+---window: any,
 ---equation: any,
 ---color_name: string,
 ---ncells_w: number,
@@ -24,7 +24,7 @@ function Mark.new(opts)
   local self = {}
   setmetatable(self, Mark)
 
-  self.buffer = opts.buffer
+  self.window = opts.window
   self.equation = opts.equation
   self.id = _get_id()
   self.hash = utils.mark.hash_mark(self.id)
@@ -38,8 +38,8 @@ function Mark.new(opts)
   self.end_col = opts.end_col
   self.ncells_h = opts.ncells_h
   self.ncells_w = opts.ncells_w
-  self.offset = utils.mark.compute_offset(opts.buffer:get_bufnr(), opts.start_row, opts.start_col)
-  self.length = utils.mark.compute_offset(opts.buffer:get_bufnr(), opts.end_row, opts.end_col) - self.offset
+  self.offset = utils.mark.compute_offset(opts.window:get_bufnr(), opts.start_row, opts.start_col)
+  self.length = utils.mark.compute_offset(opts.window:get_bufnr(), opts.end_row, opts.end_col) - self.offset
 
   self.is_displayed = false
   self.is_valid = true
@@ -50,7 +50,7 @@ end
 
 function Mark:free()
   self:hide()
-  self.buffer:remove_mark(self)
+  self.window:remove_mark(self)
   self.equation:remove_mark(self)
   self.is_valid = false
 end
@@ -145,7 +145,7 @@ end
 
 function Mark:delete_extmarks()
   for _, extmark_id in ipairs(self.extmark_ids) do
-    vim.api.nvim_buf_del_extmark(self.buffer:get_bufnr(), NS_ID, extmark_id)
+    vim.api.nvim_buf_del_extmark(self.window:get_bufnr(), NS_ID, extmark_id)
   end
 end
 

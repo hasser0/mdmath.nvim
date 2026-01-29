@@ -2,9 +2,9 @@ local M = {}
 
 local utils = require("mdmath.utils")
 
-function M.hide_in_cursor(buffer, marks)
-  local row, col = utils.window.get_cursor()
-  local cursor_offset = utils.mark.compute_offset(buffer:get_bufnr(), row, col)
+function M.hide_in_cursor(window, marks)
+  local row, col = window:get_cursor()
+  local cursor_offset = utils.mark.compute_offset(window:get_bufnr(), row, col)
   for _, mark in pairs(marks) do
     local mark_in_cursor = mark:contains_offset(cursor_offset)
     if mark_in_cursor then
@@ -15,8 +15,8 @@ function M.hide_in_cursor(buffer, marks)
   end
 end
 
-function M.hide_in_line(_, marks)
-  local row, _ = utils.window.get_cursor()
+function M.hide_in_line(window, marks)
+  local row, _ = window:get_cursor()
   for _, mark in pairs(marks) do
     local mark_inline = mark:contains_row(row)
     if mark_inline then
