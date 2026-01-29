@@ -243,7 +243,7 @@ function Window:_parse_line_range()
   parser:for_each_tree(function(tree)
     for _, node, _, _ in query:iter_captures(tree:root(), 0, first_row, last_row) do
       local start_row, start_col, end_row, end_col = node:range()
-      local text = vim.treesitter.get_node_text(node, 0)
+      local text = vim.treesitter.get_node_text(node, self.bufnr)
       local hash = utils.equation.hash_equation(text)
       if not self.equations[hash] then
         local equation = Equation.new({
