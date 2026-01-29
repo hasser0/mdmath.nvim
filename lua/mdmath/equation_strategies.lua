@@ -28,20 +28,20 @@ local function unicode_range(row, width)
   return table.concat(unicode_text)
 end
 
-local function hide_equation(mark, equation, buffer)
+local function hide_equation(mark, equation, window)
   kitty.delete_image_placement({
-    tty = buffer:get_tty(),
+    tty = window:get_tty(),
     image_id = equation:get_id(),
     placement_id = mark:get_id(),
   })
   mark:delete_extmarks()
 end
 
-local function hide_error(mark, equation, buffer)
+local function hide_error(mark, equation, window)
   mark:delete_extmarks()
 end
 
-function AdjustEquationToText.create_extmarks(mark, equation, buffer)
+function AdjustEquationToText.create_extmarks(mark, equation, window)
   local start = mark:get_start()
   local mark_dim = mark:get_dimensions()
   local image_dim = equation:get_image_dimensions()
@@ -75,7 +75,7 @@ function AdjustEquationToText.create_extmarks(mark, equation, buffer)
         normal_lines = normal_lines + 1
       end
       local extmark_id = vim.api.nvim_buf_set_extmark(
-        buffer:get_bufnr(), NS_ID,
+        window:get_bufnr(), NS_ID,
         extmark_row, extmark_col, extmark_opts
       )
       mark:add_extmark(extmark_id)
@@ -83,10 +83,10 @@ function AdjustEquationToText.create_extmarks(mark, equation, buffer)
   end)
 end
 
-function AdjustEquationToText.show(mark, equation, buffer)
+function AdjustEquationToText.show(mark, equation, window)
   local start = mark:get_start()
   kitty.display_image_placement({
-    tty = buffer:get_tty(),
+    tty = window:get_tty(),
     image_id = equation:get_id(),
     placement_id = mark:get_id(),
     row = start.row,
@@ -94,14 +94,14 @@ function AdjustEquationToText.show(mark, equation, buffer)
   })
 end
 
-function AdjustEquationToText.hide(mark, equation, buffer)
-  hide_equation(mark, equation, buffer)
+function AdjustEquationToText.hide(mark, equation, window)
+  hide_equation(mark, equation, window)
 end
 
-function ErrorStrategy.create_extmarks(mark, equation, buffer)
+function ErrorStrategy.create_extmarks(mark, equation, window)
   local start = mark:get_start()
   vim.schedule(function()
-    local extmark_id = vim.api.nvim_buf_set_extmark(buffer:get_bufnr(), NS_ID, start.row, start.col, {
+    local extmark_id = vim.api.nvim_buf_set_extmark(window:get_bufnr(), NS_ID, start.row, start.col, {
       virt_text = {{ equation:get_message(), "Error" }},
       virt_text_pos = "eol",
     })
@@ -109,14 +109,14 @@ function ErrorStrategy.create_extmarks(mark, equation, buffer)
   end)
 end
 
-function ErrorStrategy.show(mark, equation, buffer)
+function ErrorStrategy.show(mark, equation, window)
 end
 
-function ErrorStrategy.hide(mark, equation, buffer)
-  hide_error(mark, equation, buffer)
+function ErrorStrategy.hide(mark, equation, window)
+  hide_error(mark, equation, window)
 end
 
-function AdjustTextToEquation.create_extmarks(mark, equation, buffer)
+function AdjustTextToEquation.create_extmarks(mark, equation, window)
   local start = mark:get_start()
   local last = mark:get_end()
   local mark_dim = mark:get_dimensions()
@@ -154,7 +154,7 @@ function AdjustTextToEquation.create_extmarks(mark, equation, buffer)
         normal_lines = normal_lines + 1
       end
       local extmark_id = vim.api.nvim_buf_set_extmark(
-        buffer:get_bufnr(), NS_ID,
+        window:get_bufnr(), NS_ID,
         extmark_row, extmark_col, extmark_opts
       )
       mark:add_extmark(extmark_id)
@@ -162,10 +162,10 @@ function AdjustTextToEquation.create_extmarks(mark, equation, buffer)
   end)
 end
 
-function AdjustTextToEquation.show(mark, equation, buffer)
+function AdjustTextToEquation.show(mark, equation, window)
   local start = mark:get_start()
   kitty.display_image_placement({
-    tty = buffer:get_tty(),
+    tty = window:get_tty(),
     image_id = equation:get_id(),
     placement_id = mark:get_id(),
     row = start.row,
@@ -173,8 +173,8 @@ function AdjustTextToEquation.show(mark, equation, buffer)
   })
 end
 
-function AdjustTextToEquation.hide(mark, equation, buffer)
-  hide_equation(mark, equation, buffer)
+function AdjustTextToEquation.hide(mark, equation, window)
+  hide_equation(mark, equation, window)
 end
 
 return M

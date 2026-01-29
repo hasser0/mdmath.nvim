@@ -7,14 +7,14 @@ local PLUGIN_DIR = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h
 local PROCESSOR_DIR = PLUGIN_DIR .. "/mdmath-js"
 local PROCESSOR_JS = PROCESSOR_DIR .. "/src/processor.js"
 
-function Processor.new(buffer)
+function Processor.new(window)
   local self = {}
   setmetatable(self, Processor)
 
   self.stdin = vim.uv.new_pipe()
   self.stdout = vim.uv.new_pipe()
   self.stderr = vim.uv.new_pipe()
-  self.buffer = buffer
+  self.window = window
   assert(self.stdin, "[MDMATH] Failed to open stdin for processor")
   assert(self.stdout, "[MDMATH] Failed to open stdout for processor")
   assert(self.stderr, "[MDMATH] Failed to open stderr for processor")
@@ -58,7 +58,6 @@ function Processor:set_terminal_sizes()
 end
 
 function Processor:set_configs()
-  -- TODO add methods for display
   self:_send_json({
     type = "config",
     bottomLineRatio = config.bottom_line_ratio,
@@ -95,7 +94,7 @@ function Processor:_resend_data(data)
     local segment = data:sub(content_start, content_end)
     vim.schedule(function()
       local json = vim.fn.json_decode(vim.base64.decode(segment))
-      self.buffer:notify_processor(json)
+      self.window:notify_processor(json)
     end)
     i = content_end + 2
   end

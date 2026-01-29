@@ -31,7 +31,7 @@ function Equation.new(opts)
   setmetatable(self, Equation)
 
   self.id = _get_id()
-  self.buffer = opts.buffer
+  self.window = opts.window
   self.hash = opts.hash
   self.text = opts.text
   self.equation = opts.text:gsub("^%$*(.-)%$*$", "%1"):gsub("[\n\r]", "")
@@ -57,13 +57,13 @@ end
 
 function Equation:free()
   kitty.delete_image({
-    tty = self.buffer:get_tty(),
+    tty = self.window:get_tty(),
     image_id = self.id,
   })
   for _, mark in pairs(self.marks) do
     mark:free()
   end
-  self.buffer:remove_equation(self)
+  self.window:remove_equation(self)
 end
 
 function Equation:get_hash()
@@ -110,7 +110,7 @@ function Equation:get_or_create_mark(opts)
   end
   local mark = Mark.new({
     equation = self,
-    buffer = self.buffer,
+    window = self.window,
     color_name = self.color_name,
     ncells_w = self.ncells_w,
     ncells_h = self.ncells_h,
@@ -172,8 +172,8 @@ function Equation:show_mark(mark)
     return
   end
   local strategy = self:_get_mark_strategy()
-  strategy.create_extmarks(mark, self, self.buffer)
-  strategy.show(mark, self, self.buffer)
+  strategy.create_extmarks(mark, self, self.window)
+  strategy.show(mark, self, self.window)
 end
 
 function Equation:hide_mark(mark)
@@ -184,7 +184,7 @@ function Equation:hide_mark(mark)
     return
   end
   local strategy = self:_get_mark_strategy()
-  strategy.hide(mark, self, self.buffer)
+  strategy.hide(mark, self, self.window)
 end
 
 function Equation:_set_equation_mode()
@@ -201,7 +201,7 @@ end
 
 function Equation:_transfer_png_file()
   kitty.transfer_png_file({
-    tty = self.buffer:get_tty(),
+    tty = self.window:get_tty(),
     png_path = self.image_filename,
     image_id = self.id
   })
