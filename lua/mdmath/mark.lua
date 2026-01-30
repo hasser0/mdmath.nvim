@@ -90,6 +90,7 @@ end
 function Mark:update_position(opts)
   self.is_updating = true
   if not self.is_valid then
+    self.is_updating = false
     return
   end
 
@@ -100,6 +101,7 @@ function Mark:update_position(opts)
 
   -- unchanged mark
   if offset + length <= opts.start_offset then
+    self.is_updating = false
     return
   end
 
