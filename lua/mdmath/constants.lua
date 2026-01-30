@@ -10,19 +10,17 @@ M.default_opts = {
   -- Display strategy per mode
   --   + hide_all: hides all marks
   --   + show_all: show all marks
-  --   + hide_in_cursor: hides marks under cursor. Not recommended with
-  --                   AdjustTextToEquation for inline-equations, use
-  --                   hide_in_line instead for that
+  --   + hide_in_cursor: hides marks under cursor. Before using, see inline_strategy.
   --   + hide_in_line: hides all marks in current line.
   insert_strategy = "hide_all",
   normal_strategy = "hide_in_line",
   -- Display strategy for individual equations.
-  -- For inline-equations, height is limited to cell height.
-  --   + AdjustTextToEquation: Shrinks or extend text as needed to fit  image size
-  --                         make sure vim.opt.conceallevel >= 1 for each filetype
-  --   + AdjustEquationToText: Image size is limited by text area
-  inline_strategy = "AdjustEquationToText",
-  display_strategy = "AdjustTextToEquation",
+  --   + flex_size: Shrinks or extend text as needed to fit  image size
+  --                         make sure vim.opt.conceallevel >= 1 for each filetype.
+  --                         It is recommended not to use hide_in_cursor for this
+  --                         configuration, due display issues.
+  --   + fixed_size: Image size is limited by text area
+  inline_strategy = "fixed_size",
   -- Center display equations the full window width.
   center_display = true,
   -- Number of pixels to use as padding from above and below

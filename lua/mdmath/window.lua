@@ -63,12 +63,17 @@ end
 
 function Window.disable_mdmath_for_window()
   local winid = vim.api.nvim_get_current_win()
+  if not windows[winid] then
+    return
+  end
   windows[winid]:free()
-  windows[winid] = nil
 end
 
 function Window.clear_mdmath_for_window()
   local winid = vim.api.nvim_get_current_win()
+  if not windows[winid] then
+    return
+  end
   windows[winid]:free_equations()
 end
 
@@ -82,8 +87,10 @@ function Window.attach_buffer_to_window(bufnr, winid)
 end
 
 function Window.detach_buffer_from_window(bufnr, winid)
+  if not windows[winid] then
+    return
+  end
   windows[winid]:free()
-  windows[winid] = nil
 end
 
 function Window.new(winid, bufnr, filetype)
@@ -105,6 +112,18 @@ function Window.new(winid, bufnr, filetype)
 
   self.processor = Processor.new(self)
 
+  -- TODO remove
+  -- attach to buf
+  vim.api.nvim_buf_attach(self.bufnr, false, {
+    on_bytes = function(_, _, _,
+                        start_row, start_col, start_offset,
+                        old_end_row, old_end_col, old_offset,
+                        new_end_row, new_end_col, new_offset)
+      self:_autocmd_update_bytes(_, _, _, start_row, start_col, start_offset,
+        old_end_row, old_end_col, old_offset,
+        new_end_row, new_end_col, new_offset)
+    end,
+  })
   -- create autocmds
   vim.api.nvim_create_autocmd({ "WinClosed", "VimLeave" }, {
     pattern = tostring(winid),
@@ -146,6 +165,7 @@ function Window.new(winid, bufnr, filetype)
       self:_loop()
     end
   })
+  self:_loop()
 
   return self
 end
@@ -187,19 +207,6 @@ function Window:remove_equation(equation)
   self.equations[equation:get_hash()] = nil
 end
 
-function Window:_loop()
-  self:_parse_line_range()
-  self:_draw()
-end
-
-function Window:_draw()
-  if self.mode == WINDOW_MODE.NORMAL then
-    self:normal_display(self.marks)
-  elseif self.mode == WINDOW_MODE.INSERT then
-    self:insert_display(self.marks)
-  end
-end
-
 function Window:free_equations()
   for _, equation in pairs(self.equations) do
     equation:free()
@@ -216,6 +223,19 @@ end
 function Window:get_cursor()
   local cursor = vim.api.nvim_win_get_cursor(self.winid)
   return cursor[1] - 1, cursor[2]
+end
+
+function Window:_loop()
+  self:_parse_line_range()
+  self:_draw()
+end
+
+function Window:_draw()
+  if self.mode == WINDOW_MODE.NORMAL then
+    self:normal_display(self.marks)
+  elseif self.mode == WINDOW_MODE.INSERT then
+    self:insert_display(self.marks)
+  end
 end
 
 function Window:_parse_line_range()
@@ -308,10 +328,6 @@ function Window:_autocmd_update_bytes(_, _, _,
 
   for key, mark in pairs(self.marks) do
     mark:update_position(opts)
-    if not mark:is_alive() then
-      self.marks[key]:free()
-      self.marks[key] = nil
-    end
   end
 end
 

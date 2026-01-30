@@ -52,8 +52,8 @@ function M.set_options(opts)
   assert(mode_strategies[M.opts.insert_strategy], "[MDMATH] 'insert_strategy' unexpected value")
   assert(mode_strategies[M.opts.normal_strategy], "[MDMATH] 'normal_strategy' unexpected value")
   local equation_strategies = {
-    AdjustEquationToText = true,
-    AdjustTextToEquation = true,
+    fixed_size = true,
+    flex_size = true,
   }
   assert(equation_strategies[M.opts.inline_strategy], "[MDMATH] 'inline_strategy' unexpected value")
 

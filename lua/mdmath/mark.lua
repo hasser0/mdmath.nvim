@@ -43,6 +43,7 @@ function Mark.new(opts)
 
   self.is_displayed = false
   self.is_valid = true
+  self.is_updating = false
   self.color_name = opts.color_name
 
   return self
@@ -87,6 +88,7 @@ end
 ---new_offset: number,
 ---}
 function Mark:update_position(opts)
+  self.is_updating = true
   if not self.is_valid then
     return
   end
@@ -104,7 +106,6 @@ function Mark:update_position(opts)
   -- deleted mark
   if offset < opts.old_offset then
     self.is_valid = false
-    return
   end
 
   -- update mark
@@ -117,10 +118,11 @@ function Mark:update_position(opts)
   self.start_row = row
   self.start_col = col
   self.offset = offset
+  self.is_updating = false
 end
 
 function Mark:show()
-  if self.is_displayed then
+  if self.is_displayed or not self.is_valid or self.is_updating then
     return
   end
   self.is_displayed = true
@@ -128,7 +130,7 @@ function Mark:show()
 end
 
 function Mark:hide()
-  if not self.is_displayed then
+  if not self.is_displayed or not self.is_valid or self.is_updating then
     return
   end
   self.is_displayed = false

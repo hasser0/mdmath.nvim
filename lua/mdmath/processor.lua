@@ -64,7 +64,6 @@ function Processor:set_configs()
     displayZoom = config.display_zoom,
     centerDisplay = config.center_display,
     foreground = config.foreground,
-    displayMethod = config.display_strategy,
     inlineMethod = config.inline_strategy,
   })
 end

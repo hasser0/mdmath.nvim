@@ -17,11 +17,11 @@ let cellWidthInPixels = 0;
 let winWidthInCells = 0;
 // config
 const methodsMap = {
-  AdjustEquationToText: adjustEquationToText,
-  AdjustTextToEquation: adjustTextToEquation,
+  fixed_size: fixedSize,
+  flex_size: flexSize,
 };
 let bottomLineRatio = 0;
-let methods = { display: null, inline: null, };
+let inlineMethod = null
 let centerDisplay = true;
 let foreground = null;
 
@@ -58,7 +58,7 @@ async function equationToSVG(equation, opts) {
 // numberCellsWidth
 // numberCellsHeight
 // equationType
-async function adjustEquationToText(svg, opts) {
+async function fixedSize(svg, opts) {
   // zoom up to text width
   const currentDisplay = opts.isDisplay ? displayZoom : 1;
   let png = await rsvgConvert(svg, [
@@ -95,7 +95,7 @@ async function adjustEquationToText(svg, opts) {
   });
 }
 
-async function adjustTextToEquation(svg, opts) {
+async function flexSize(svg, opts) {
   // zoom but keep under size limited to two cells in height
   const currentDisplay = opts.isDisplay ? displayZoom : 1;
   const argSVG = [
@@ -139,7 +139,12 @@ async function adjustTextToEquation(svg, opts) {
 
 async function processEquation(req) {
   req.isDisplay = (req.equationType === "display");
-  const svg2png = methods[req.equationType];
+  let svg2png = null;
+  if (req.isDisplay) {
+    svg2png = flexSize;
+  } else {
+    svg2png = inlineMethod;
+  }
   req.numberPixelsWidth = req.numberCellsWidth * cellWidthInPixels;
   req.numberPixelsHeight = req.numberCellsHeight * cellHeightInPixels;
   req.filename = `${IMG_DIR}/${req.hash}.png`;
@@ -183,8 +188,7 @@ function processMessage(req) {
   } else if (req.type == "config") {
     bottomLineRatio = req.bottomLineRatio;
     displayZoom = req.displayZoom;
-    methods["inline"] = methodsMap[req.inlineMethod];
-    methods["display"] = methodsMap[req.displayMethod];
+    inlineMethod = methodsMap[req.inlineMethod];
     centerDisplay = req.centerDisplay;
     foreground = req.foreground;
   } else if (req.type == "image") {

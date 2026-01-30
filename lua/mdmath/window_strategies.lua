@@ -27,13 +27,13 @@ function M.hide_in_line(window, marks)
   end
 end
 
-function M.hide_all(_, marks)
+function M.hide_all(window, marks)
   for _, mark in pairs(marks) do
     mark:hide()
   end
 end
 
-function M.show_all(_, marks)
+function M.show_all(window, marks)
   for _, mark in pairs(marks) do
     mark:show()
   end

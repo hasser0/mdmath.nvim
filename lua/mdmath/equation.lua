@@ -172,7 +172,6 @@ function Equation:show_mark(mark)
     return
   end
   local strategy = self:_get_mark_strategy()
-  strategy.create_extmarks(mark, self, self.window)
   strategy.show(mark, self, self.window)
 end
 
@@ -212,14 +211,14 @@ function Equation:_get_mark_strategy()
     return self.equation_strategy
   end
   if self.equation_type == EQUATION_TYPE.ERROR then
-    self.equation_strategy = equation_strategies["ErrorStrategy"]
+    self.equation_strategy = equation_strategies["error"]
     return self.equation_strategy
   elseif self.equation_type == EQUATION_TYPE.IMAGE then
     if self.equation_mode == EQUATION_MODE.INLINE then
       self.equation_strategy = equation_strategies[config.inline_strategy]
       return self.equation_strategy
     elseif self.equation_mode == EQUATION_MODE.DISPLAY then
-      self.equation_strategy = equation_strategies[config.display_strategy]
+      self.equation_strategy = equation_strategies["multiline"]
       return self.equation_strategy
     end
   end
