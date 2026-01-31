@@ -50,6 +50,7 @@ function Mark.new(opts)
 end
 
 function Mark:free()
+  self.is_valid = true
   self:hide()
   self.window:remove_mark(self)
   self.equation:remove_mark(self)
