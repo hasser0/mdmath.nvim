@@ -178,7 +178,7 @@ end
 function Equation:hide_mark(mark)
   if not self.is_displayable then
     vim.defer_fn(function()
-      self:hide()
+      self:hide_mark(mark)
     end, config.retry_mark_draw)
     return
   end
