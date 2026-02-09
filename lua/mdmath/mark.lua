@@ -61,6 +61,10 @@ function Mark:get_hash()
   return self.hash
 end
 
+function Mark:get_equation()
+  return self.equation
+end
+
 function Mark:is_alive()
   return self.is_valid
 end

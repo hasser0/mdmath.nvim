@@ -47,6 +47,8 @@ M.default_opts = {
   update_interval = 50,
   -- Zoom to apply to display equations. Not direct scale
   display_zoom = 1.2,
+  -- Keymap to display equation in a floating window. Set to "" to disable feature
+  pop_equation = "",
 }
 
 M.diacritics = {

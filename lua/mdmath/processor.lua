@@ -46,7 +46,7 @@ function Processor:free()
 end
 
 function Processor:set_terminal_sizes()
-  local win_id = vim.api.nvim_get_current_win()
+  local win_id = self.window:get_winid()
   local win_info = vim.fn.getwininfo(win_id)[1]
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
   self:_send_json({

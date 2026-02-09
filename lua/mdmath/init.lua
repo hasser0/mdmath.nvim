@@ -4,12 +4,6 @@ local group = vim.api.nvim_create_augroup("Mdmath", { clear = true })
 
 function M.setup(opts)
   require("mdmath.config").set_options(opts)
-  vim.api.nvim_create_autocmd({ "VimEnter", "WinNew" }, {
-    group = group,
-    callback = function(args)
-      require("mdmath.window").enable_mdmath_for_window()
-    end,
-  })
 
   vim.api.nvim_create_autocmd("BufWinEnter", {
     pattern = { "*.md", "*.tex" },

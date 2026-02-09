@@ -36,6 +36,7 @@ function M.set_options(opts)
   assert(type(M.opts.retry_mark_draw) == "number", "[MDMATH] 'retry_mark_draw' config expected number")
   assert(type(M.opts.update_interval) == "number", "[MDMATH] 'update_interval' config expected number")
   assert(type(M.opts.display_zoom) == "number", "[MDMATH] 'display_zoom' config expected number")
+  assert(type(M.opts.pop_equation) == "string", "[MDMATH] 'pop_equation' config expected string")
 
   assert(#M.opts.filetypes > 0, "[MDMATH] 'filetypes' config expected at least one item")
   assert(is_hex_color(M.opts.foreground), "[MDMATH] 'foreground' config expected valid hl or hex color")

@@ -131,6 +131,10 @@ function Equation:get_message()
   return self.message
 end
 
+function Equation:get_text()
+  return self.text
+end
+
 function Equation:get_image_dimensions()
   local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
   return {

@@ -7,7 +7,6 @@ local window_strategies = require("mdmath.window_strategies")
 local config = require("mdmath.config").opts
 local utils = require("mdmath.utils")
 local terminfo = require("mdmath.terminfo")
-local augroup = vim.api.nvim_create_augroup("MdmathManager", { clear = true })
 local windows = {}
 
 local WINDOW_MODE = {
@@ -66,6 +65,7 @@ function Window.disable_mdmath_for_window()
   if not windows[winid] then
     return
   end
+  print("DISABLE " .. windows[winid]:get_winid(), windows[winid]:get_bufnr())
   windows[winid]:free()
 end
 
@@ -77,13 +77,15 @@ function Window.clear_mdmath_for_window()
   windows[winid]:free_equations()
 end
 
-function Window.attach_buffer_to_window(bufnr, winid)
-    local bufname = vim.api.nvim_buf_get_name(bufnr)
-    if bufname == nil then
-      return
-    end
-  local filetype = vim.filetype.match({ filename = bufname })
-  windows[winid] = Window.new(winid, bufnr, filetype)
+function Window.attach_buffer_to_window(bufnr, winid, ft)
+  local bufname = vim.api.nvim_buf_get_name(bufnr)
+  if bufname == nil then
+    return
+  end
+  local filetype = ft == "floatmd" and "markdown" or vim.filetype.match({ filename = bufname })
+  local isfloat = ft == "floatmd"
+  windows[winid] = Window.new(winid, bufnr, filetype, isfloat)
+  return windows[winid]
 end
 
 function Window.detach_buffer_from_window(bufnr, winid)
@@ -93,7 +95,7 @@ function Window.detach_buffer_from_window(bufnr, winid)
   windows[winid]:free()
 end
 
-function Window.new(winid, bufnr, filetype)
+function Window.new(winid, bufnr, filetype, isfloat)
   local self = {}
 
   setmetatable(self, Window)
@@ -103,12 +105,15 @@ function Window.new(winid, bufnr, filetype)
   self.bufnr = bufnr
   self.winid = winid
   self.filetype = filetype
+  self.isfloat = isfloat
   self.mode = WINDOW_MODE.NORMAL
   self.equations = {}
   self.marks = {}
   self.parser = _get_parser(bufnr, filetype)
   self.tty = vim.uv.new_tty(1, false)
   self.active = true
+  self.float_equation = nil
+  self.augroup = vim.api.nvim_create_augroup("MdmathWindow" .. winid .. bufnr, { clear = true })
 
   self.processor = Processor.new(self)
 
@@ -124,12 +129,17 @@ function Window.new(winid, bufnr, filetype)
         new_end_row, new_end_col, new_offset)
     end,
   })
+  if config.pop_equation ~= "" then
+    vim.keymap.set("n", config.pop_equation, function() self:popup() end, {
+      buffer = self.bufnr,
+    })
+  end
   -- create autocmds
   vim.api.nvim_create_autocmd({ "WinClosed", "VimLeave" }, {
     pattern = tostring(winid),
-    group = augroup,
+    group = self.augroup,
     callback = function(args)
-      require("mdmath.window").disable_mdmath_for_window()
+      self:free()
     end
   })
   vim.api.nvim_create_autocmd({ "VimResized" }, {
@@ -141,19 +151,28 @@ function Window.new(winid, bufnr, filetype)
     end, config.update_interval)
   })
   vim.api.nvim_create_autocmd({ "WinScrolled", "BufEnter" }, {
-    group = augroup,
+    group = self.augroup,
     callback = _debounce(function(args)
       self:_loop()
     end, config.update_interval)
   })
   vim.api.nvim_create_autocmd({ "CursorMoved" }, {
-    group = augroup,
+    group = self.augroup,
     callback = _debounce(function(args)
+      local winid = vim.api.nvim_get_current_win()
+      if self.winid ~= winid then
+        return
+      end
+      if self.float_equation then
+        vim.api.nvim_win_close(self.float_equation:get_winid(), true)
+        self.float_equation:free()
+        self.float_equation = nil
+      end
       self:normal_display(self.marks)
     end, config.update_interval)
   })
   vim.api.nvim_create_autocmd({ "ModeChanged" }, {
-    group = augroup,
+    group = self.augroup,
     callback = function(args)
       local old_mode = vim.v.event.old_mode:sub(1, 1)
       local mode = vim.v.event.new_mode:sub(1, 1)
@@ -170,6 +189,37 @@ function Window.new(winid, bufnr, filetype)
   return self
 end
 
+function Window:popup()
+  local row, col = self:get_cursor()
+  local cursor_offset = utils.mark.compute_offset(self:get_bufnr(), row, col)
+  for _, mark in pairs(self.marks) do
+    if mark:contains_offset(cursor_offset) then
+      local equation = mark:get_equation()
+      local dim = equation:get_image_dimensions()
+      local buf = vim.api.nvim_create_buf(false, true)
+      local lines = {""}
+      for str in string.gmatch(equation:get_text(), "([^\n]+)") do
+        table.insert(lines, str)
+      end
+      vim.api.nvim_buf_set_lines(buf, 0, dim.cell_h, false, lines)
+      vim.api.nvim_buf_set_var(buf, "bufhidden", "delete")
+      vim.api.nvim_buf_set_var(buf, "buftype", "")
+      local win = vim.api.nvim_open_win(buf, false, {
+        style = "minimal",
+        relative = "cursor",
+        row = 1,
+        col = 0,
+        width = dim.cell_w,
+        height = dim.cell_h + 1,
+        focusable = false,
+      })
+      vim.api.nvim_win_set_cursor(win, {1, 0})
+      self.float_equation = Window.attach_buffer_to_window(buf, win, "floatmd")
+      break
+    end
+  end
+end
+
 function Window:free()
   if not self.active then
     return
@@ -177,16 +227,22 @@ function Window:free()
   self.active = false
   self:free_equations()
   self.processor:free()
+  if self.float_equation then
+    self.float_equation:free()
+  end
   windows[self.winid] = nil
 
-  --TODO REMOVE AUTOCMDS
   vim.api.nvim_clear_autocmds({
-    group = augroup,
+    group = self.augroup,
   })
 end
 
 function Window:get_bufnr()
   return self.bufnr
+end
+
+function Window:get_winid()
+  return self.winid
 end
 
 function Window:get_tty()
