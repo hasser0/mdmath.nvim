@@ -134,11 +134,6 @@ function Window.new(winid, bufnr, filetype, isfloat)
         new_end_row, new_end_col, new_offset)
     end,
   })
-  if config.pop_equation ~= "" then
-    vim.keymap.set("n", config.pop_equation, function() self:toggle_float() end, {
-      buffer = self.bufnr,
-    })
-  end
   -- create autocmds
   vim.api.nvim_create_autocmd({ "WinClosed", "VimLeave" }, {
     pattern = tostring(winid),
