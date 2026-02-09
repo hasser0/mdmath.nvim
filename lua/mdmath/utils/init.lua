@@ -1,6 +1,7 @@
 local M = {}
 
 M.mark = require("mdmath.utils.mark")
-M.equation = require("mdmath.utils.equation")
+M.text = require("mdmath.utils.text")
+M.array = require("mdmath.utils.array")
 
 return M

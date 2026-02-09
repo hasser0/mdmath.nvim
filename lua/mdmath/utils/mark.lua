@@ -1,9 +1,5 @@
 local M = {}
 
-function M.hash_mark(id)
-  return tostring(id)
-end
-
 function M.linewidth(bufnr, row)
   local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)
   return line and line[1]:len() or 0

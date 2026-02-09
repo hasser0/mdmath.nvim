@@ -44,7 +44,7 @@ function Equation.new(opts)
 
   self:_set_equation_mode()
 
-  local lines = utils.equation.split_text_in_lines(opts.text)
+  local lines = utils.text.split_text_in_lines(opts.text)
   local lines_width = {}
   for _, line in pairs(lines) do
     lines_width[#lines_width+1] = line:len()
@@ -74,20 +74,30 @@ function Equation:get_id()
   return self.id
 end
 
-function Equation:request_image_mathjax(processor)
-  if not self.is_displayable then
-    processor:request_image({
-      hash = self.hash,
-      equation = self.equation,
-      numberCellsWidth = self.ncells_w,
-      numberCellsHeight = self.ncells_h,
-      equationType = self.equation_mode == EQUATION_MODE.INLINE and "inline" or "display",
-    })
-  end
+function Equation:get_message()
+  return self.message
 end
 
-function Equation:remove_mark(mark)
-  self.marks[mark:get_hash()] = nil
+function Equation:get_text()
+  return self.text
+end
+
+function Equation:get_image_dimensions()
+  local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
+  return {
+    pixel_w = self.image_width,
+    pixel_h = self.image_height,
+    cell_w = math.ceil(self.image_width / pixels_per_cell_w),
+    cell_h = math.ceil(self.image_height / pixels_per_cell_h),
+  }
+end
+
+function Equation:get_lines_width()
+  local lines_w = {}
+  for line in self.text:gmatch("[^\r\n]+") do
+    table.insert(lines_w, #line)
+  end
+  return lines_w
 end
 
 ---@param opts {
@@ -127,30 +137,16 @@ function Equation:is_message()
   return self.message
 end
 
-function Equation:get_message()
-  return self.message
-end
-
-function Equation:get_text()
-  return self.text
-end
-
-function Equation:get_image_dimensions()
-  local pixels_per_cell_w, pixels_per_cell_h = terminfo.get_pixels_per_cell()
-  return {
-    pixel_w = self.image_width,
-    pixel_h = self.image_height,
-    cell_w = math.ceil(self.image_width / pixels_per_cell_w),
-    cell_h = math.ceil(self.image_height / pixels_per_cell_h),
-  }
-end
-
-function Equation:get_lines_width()
-  local lines_w = {}
-  for line in self.text:gmatch("[^\r\n]+") do
-    table.insert(lines_w, #line)
+function Equation:request_image_mathjax(processor)
+  if not self.is_displayable then
+    processor:request_image({
+      hash = self.hash,
+      equation = self.equation,
+      numberCellsWidth = self.ncells_w,
+      numberCellsHeight = self.ncells_h,
+      equationType = self.equation_mode == EQUATION_MODE.INLINE and "inline" or "display",
+    })
   end
-  return lines_w
 end
 
 function Equation:set_processor_result(event)
@@ -166,6 +162,10 @@ function Equation:set_processor_result(event)
     self.message = event.error
     self.is_displayable = true
   end
+end
+
+function Equation:remove_mark(mark)
+  self.marks[mark:get_hash()] = nil
 end
 
 function Equation:show_mark(mark)

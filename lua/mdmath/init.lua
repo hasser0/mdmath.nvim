@@ -40,4 +40,8 @@ function M.build()
   require("mdmath.build").build()
 end
 
+function M.float()
+  require("mdmath.window").toggle_float_for_window()
+end
+
 return M

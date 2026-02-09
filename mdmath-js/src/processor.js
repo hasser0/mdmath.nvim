@@ -76,13 +76,22 @@ async function fixedSize(svg, opts) {
   if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
     args.push(
       "-gravity", "center",
-      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`,
+      "-extent", `0x${ceilImageHeight}`,
+
+      "-gravity", "center",
+      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`
     );
   } else {
     args.push(
       "-gravity", "south",
+      "-background", "none",
       "-splice", `0x${bottomLineHeight}`,
-      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`,
+
+      "-gravity", "south",
+      "-extent", `0x${ceilImageHeight}`,
+
+      "-gravity", "center",
+      "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`
     );
   }
   args.push(`png:${opts.filename}`);

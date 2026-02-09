@@ -27,7 +27,7 @@ function Mark.new(opts)
   self.window = opts.window
   self.equation = opts.equation
   self.id = _get_id()
-  self.hash = utils.mark.hash_mark(self.id)
+  self.hash = tostring(self.id)
 
   self.extmark_ids = {}
 
@@ -63,6 +63,35 @@ end
 
 function Mark:get_equation()
   return self.equation
+end
+
+function Mark:get_dimensions()
+  return {
+    cell_h = self.ncells_h,
+    cell_w = self.ncells_w,
+  }
+end
+
+function Mark:get_start()
+  return {
+    row = self.start_row,
+    col = self.start_col,
+  }
+end
+
+function Mark:get_end()
+  return {
+    row = self.end_row,
+    col = self.end_col,
+  }
+end
+
+function Mark:get_color_name()
+  return self.color_name
+end
+
+function Mark:get_id()
+  return self.id
 end
 
 function Mark:is_alive()
@@ -158,37 +187,8 @@ function Mark:delete_extmarks()
   end
 end
 
-function Mark:get_dimensions()
-  return {
-    cell_h = self.ncells_h,
-    cell_w = self.ncells_w,
-  }
-end
-
-function Mark:get_start()
-  return {
-    row = self.start_row,
-    col = self.start_col,
-  }
-end
-
-function Mark:get_end()
-  return {
-    row = self.end_row,
-    col = self.end_col,
-  }
-end
-
 function Mark:add_extmark(extmark_id)
   self.extmark_ids[#self.extmark_ids + 1] = extmark_id
-end
-
-function Mark:get_color_name()
-  return self.color_name
-end
-
-function Mark:get_id()
-  return self.id
 end
 
 return Mark

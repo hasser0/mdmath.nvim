@@ -1,4 +1,4 @@
-local subcommands = { "enable", "disable", "build", "clear" }
+local subcommands = { "enable", "disable", "build", "clear", "float" }
 
 vim.api.nvim_create_user_command("Mdmath",
   function(opts)

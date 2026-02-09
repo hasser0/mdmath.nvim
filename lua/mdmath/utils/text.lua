@@ -10,8 +10,8 @@ function M.split_text_in_lines(text)
   return lines
 end
 
-function M.hash_equation(equation)
-  return vim.fn.system("sha256sum", equation):sub(1, 16)
+function M.hash(text)
+  return vim.fn.system("sha256sum", text):sub(1, 16)
 end
 
 return M
