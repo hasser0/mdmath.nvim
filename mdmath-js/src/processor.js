@@ -65,6 +65,7 @@ async function fixedSize(svg, opts) {
     "--zoom", `${currentDisplay * cellHeightInPixels / zoomPixelsRatio}`,
     "--width", `${opts.numberPixelsWidth}px`,
     "--height", `${opts.numberPixelsHeight}px`,
+    "--keep-aspect-ratio",
     "--format", "png",
   ]);
 
@@ -75,9 +76,6 @@ async function fixedSize(svg, opts) {
   const args = ["png:-", "-trim", "+repage", "-background", "none"];
   if ((2 * bottomLineHeight + png.imageHeight) > ceilImageHeight || opts.isDisplay) {
     args.push(
-      "-gravity", "center",
-      "-extent", `0x${ceilImageHeight}`,
-
       "-gravity", "center",
       "-extent", `${opts.numberPixelsWidth}x${ceilImageHeight}`
     );
